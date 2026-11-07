@@ -3,6 +3,7 @@ import { Platform } from './types'
 const NH_STYLE_ID = 'ehunter-host-block-style-nh'
 const EH_SCRIPT_ID = 'ehunter-host-block-script-eh'
 const NH_SCRIPT_ID = 'ehunter-host-block-script-nh'
+const WNACG_STYLE_ID = 'ehunter-host-block-style-wnacg'
 
 function appendStyleOnce(id: string, cssText: string): void {
   if (document.getElementById(id)) {
@@ -65,6 +66,14 @@ function blockNHHostActions(): void {
   )
 }
 
+function blockWNACGHostActions(): void {
+  // the mobile reader css hides every img until the site's own loader marks it .loaded
+  appendStyleOnce(
+    WNACG_STYLE_ID,
+    '#ehunter-app img { opacity: 1; }'
+  )
+}
+
 export function applyPlatformHostActions(platform: Platform): void {
   if (platform === Platform.EH) {
     blockEHHostActions()
@@ -73,5 +82,10 @@ export function applyPlatformHostActions(platform: Platform): void {
 
   if (platform === Platform.NH) {
     blockNHHostActions()
+    return
+  }
+
+  if (platform === Platform.WNACG) {
+    blockWNACGHostActions()
   }
 }

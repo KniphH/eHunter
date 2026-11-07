@@ -20,6 +20,10 @@ export function buildImageHeaders(url: string): Record<string, string> | undefin
     if (/pixiv|pximg/i.test(url)) {
         return { Referer: PIXIV_REFERER }
     }
+    // wnacg 的签名图片域会校验来源；GM 请求不自动带 Referer，用宿主页面 origin 补齐
+    if (/wnacg|qy0\.ru/i.test(url)) {
+        return { Referer: `${location.origin}/` }
+    }
     return undefined
 }
 

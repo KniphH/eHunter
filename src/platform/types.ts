@@ -14,6 +14,8 @@ export enum Platform {
   NH = 'NH',
   /** Pixiv platform (www.pixiv.net) */
   PX = 'PX',
+  /** WNACG platform (wnacg.com) */
+  WNACG = 'WNACG',
   /** Test platform (localhost, IP addresses) */
   TEST = 'TEST'
 }

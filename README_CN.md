@@ -8,7 +8,7 @@
 
 ## 安装
 
-从 [Releases](https://github.com/KniphH/eHunter/releases) 下载 `ehunter-enhanced.user.js`，安装到 油猴 / 暴力猴。支持 e-hentai、exhentai、nhentai、pixiv。
+从 [Releases](https://github.com/KniphH/eHunter/releases) 下载 `ehunter-enhanced.user.js`，安装到 油猴 / 暴力猴。支持 e-hentai、exhentai、nhentai、pixiv、wnacg。
 
 脚本需要 `GM_xmlhttpRequest`（图片兜底通道）与 `GM_download`（打包下载）权限。
 
@@ -21,6 +21,7 @@
 | 输出编码 | 更多设置 → 输出编码 | PNG / WebP / JPEG，平衡延迟与内存 |
 | 详细状态 | 页面菜单「详细信息」或阅读区右键 | 五个分区的运行时状态浮层，含渲染拆解与网络明细 |
 | pixiv 平台 | 打开作品页自动生效 | 多页插画、R-18 与关注者限定作品 |
+| WNACG 平台 | 打开幻灯片页自动生效 | 从 `mReader.initData` 解析逐页地址与尺寸，签名地址过期自动刷新 |
 | 图片兜底通道 | 自动 | `<img>` 失败后改走 GM 请求，补 Referer 并校验魔数 |
 | 重试策略 | 自动 | 绕圈重试，原图不进自动循环 |
 
@@ -117,6 +118,7 @@
 ## 三、其他增强
 
 - **pixiv 平台**：自动识别 `/artworks/:id`（含 `/en/` 形式），通过同源 `/ajax/illust/:id` 与 `/ajax/illust/:id/pages` 取元数据和逐页地址。请求自动携带当前会话 Cookie，因此 R-18 / 关注者限定作品同样可读。ugoira（动图）不支持。
+- **WNACG 平台**：识别 `/photos-slide-aid-<id>.html` 幻灯片页，从页面脚本的 `mReader.initData` 解析逐页地址与尺寸（签名地址 15 秒过期会自动刷新），标题与缩略图取自作品介绍页。站点移动版 CSS 会把 `img` 透明度设为 0，由 `hostActions` 覆盖。
 - **图片兜底通道**：`<img>` 失败后改走 `GM_xmlhttpRequest`，可自行补 `Referer`（`i.pximg.net` 缺 Referer 直接 403），还能拿到真实 HTTP 状态码。返回字节按 PNG / JPEG / GIF / WebP / AVIF 魔数校验：CDN 用 200 返回 HTML 错误页、或被响应被文本化时直接判失败，不会包成 Blob 显示成乱码图。
 - **重试策略**：一次会话生成完整计划，按「默认源 → 换源」绕圈消费到底，不再每次失败重建队列（旧实现会在图片彻底取不到时无限重试）。**原图模式永远不进自动重试循环**——e-hentai 取原图会扣 GP，只有用户手动点「原图」才作为起点出现一次。批量下载另用「只往后走」的策略，同样不含原图。
 
@@ -141,6 +143,7 @@ core/service/imageRetryPolicy.ts                重试计划
 core/components/StatsOverlay.vue                详细状态浮层
 core/components/dialog/SuperResShaderDialog.vue  算法文件管理
 src/platform/pixiv/                            pixiv 平台实现
+src/platform/wnacg/                            WNACG 平台实现
 ```
 
 ## 授权与归属

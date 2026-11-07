@@ -8,7 +8,7 @@ Original author Alex Chen, Copyright (c) 2017 Alex, MIT licensed (see [LICENSE](
 
 ## Install
 
-Download `ehunter-enhanced.user.js` from [Releases](https://github.com/KniphH/eHunter/releases) and install it in Tampermonkey / Violentmonkey. Supported sites: e-hentai, exhentai, nhentai, pixiv.
+Download `ehunter-enhanced.user.js` from [Releases](https://github.com/KniphH/eHunter/releases) and install it in Tampermonkey / Violentmonkey. Supported sites: e-hentai, exhentai, nhentai, pixiv, wnacg.
 
 The script requires `GM_xmlhttpRequest` (image fallback) and `GM_download` (bundle download).
 
@@ -21,6 +21,7 @@ The script requires `GM_xmlhttpRequest` (image fallback) and `GM_download` (bund
 | Output encoding | More settings → Output encoding | PNG / WebP / JPEG — trade latency against memory |
 | Detailed stats | Page menu → "Detailed stats", or right-click in the reader | Five-section runtime overlay with render breakdown and network detail |
 | pixiv platform | Automatic on artwork pages | Multi-page illustrations, R-18 and follower-only works |
+| WNACG platform | Automatic on slide pages | Per-page URLs and sizes from `mReader.initData`, with signed-URL refresh |
 | Image fallback channel | Automatic | GM request with Referer and magic-byte validation when `<img>` fails |
 | Retry policy | Automatic | Round-robin retry; original-source mode never auto-retried |
 
@@ -117,6 +118,7 @@ The four breakdown timings add up to the total, so you can see whether the bottl
 ## 3. Other changes
 
 - **pixiv platform**: detects `/artworks/:id` (including `/en/`), then reads metadata and per-page URLs from same-origin `/ajax/illust/:id` and `/ajax/illust/:id/pages`. Requests carry the current session cookies automatically, so R-18 and follower-only works are readable. Ugoira (animated works) is not supported.
+- **WNACG platform**: detects `/photos-slide-aid-<id>.html` slide pages, parses per-page URLs and sizes from the `mReader.initData` script (signed URLs refresh every 15 s), and takes the title / thumbnails from the intro pages. The site mobile CSS hides every `img`; `hostActions` overrides it.
 - **Image fallback channel**: when `<img>` fails, a `GM_xmlhttpRequest` retry adds the required `Referer` (`i.pximg.net` returns 403 without it) and exposes the real HTTP status. Returned bytes are validated against PNG / JPEG / GIF / WebP / AVIF magic bytes: a CDN serving an HTML error page with HTTP 200, or a manager returning text instead of binary, is treated as a failure instead of being wrapped in a Blob and shown as a broken image.
 - **Retry policy**: a session builds one complete plan and consumes "default source → alternate source" in rounds, instead of rebuilding a queue on every failure (the old behaviour could retry forever on a permanently unavailable image). **Original-source mode is never in the automatic loop** — fetching an original on e-hentai costs GP, so it appears only once, at the front, when the user explicitly picks it. Bulk downloads use a separate forward-only plan, also excluding originals.
 
@@ -141,6 +143,7 @@ core/service/imageRetryPolicy.ts                retry plan
 core/components/StatsOverlay.vue                detailed stats overlay
 core/components/dialog/SuperResShaderDialog.vue  shader file management
 src/platform/pixiv/                            pixiv platform
+src/platform/wnacg/                            WNACG platform
 ```
 
 ## License and attribution

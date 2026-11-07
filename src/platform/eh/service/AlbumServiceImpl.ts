@@ -234,7 +234,11 @@ export class EHAlbumServiceImpl implements AlbumService {
       switch (mode) {
         case ImgSrcMode.Origin:
           try {
-            imgPageInfo.src = parser.getOriginalImgUrl()
+            const originalUrl = parser.getOriginalImgUrl()
+            if (!originalUrl) {
+              return new Error('ERROR_NO_ORIGIN')
+            }
+            imgPageInfo.src = originalUrl
           } catch (e) {
             return new Error('ERROR_NO_ORIGIN')
           }

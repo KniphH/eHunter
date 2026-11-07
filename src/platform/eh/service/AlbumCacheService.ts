@@ -158,7 +158,11 @@ export class AlbumCacheService {
             switch (mode) {
                 case tags.MODE_ORIGIN: // if want to load original img
                     try {
-                        album.imgPageInfos[index].src = parser.getOriginalImgUrl();
+                        const originalUrl = parser.getOriginalImgUrl();
+                        if (!originalUrl) {
+                            return Error(tags.ERROR_NO_ORIGIN);
+                        }
+                        album.imgPageInfos[index].src = originalUrl;
                     } catch (e) {
                         return Error(tags.ERROR_NO_ORIGIN);
                     }

@@ -16,7 +16,7 @@ const userscriptBanner = `// ==UserScript==
 // @name         eHunter Enhanced
 // @namespace    https://github.com/KniphH/eHunter
 // @version      ${pkg.version}
-// @description  Enhanced fork of eHunter: scroll/book reader for e-hentai/exhentai/nhentai/pixiv with Anime4K super-resolution, output encoding and stats overlay.  eHunter 增强版：卷轴/书本阅读，附超分放大、输出编码与状态浮层.
+// @description  Enhanced fork of eHunter: scroll/book reader for e-hentai/exhentai/nhentai/pixiv/wnacg with Anime4K super-resolution, output encoding and stats overlay.  eHunter 增强版：卷轴/书本阅读，附超分放大、输出编码与状态浮层.
 // @supportURL   https://github.com/KniphH/eHunter/issues
 // @author       Alex Chen; enhanced by KniphH
 // @match        https://exhentai.org/*
@@ -24,8 +24,12 @@ const userscriptBanner = `// ==UserScript==
 // @match        https://nhentai.net/*
 // @match        https://www.pixiv.net/*
 // @match        https://pixiv.net/*
+// @match        https://wnacg.com/*
+// @match        https://*.wnacg.com/*
 // @connect      hath.network
 // @connect      nhentai.net
+// @connect      wnacg.com
+// @connect      qy0.ru
 // @connect      www.pixiv.net
 // @connect      pixiv.net
 // @connect      i.pximg.net

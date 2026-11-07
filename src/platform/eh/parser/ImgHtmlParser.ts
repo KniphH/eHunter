@@ -87,9 +87,17 @@ constructor(html) {
         return node.getAttribute('x-src') || node.getAttribute('src') || '';
     }
 
+    /**
+     * 原图地址。
+     *
+     * 上游按 `#i6` 页脚的 children 位置取「最后一个元素的第二个子元素的 href」，两个坑：
+     * 1. 没有独立原图链接时 `#i6` 结构不同，`!` 断言会抛异常，或取到别的元素的 href；
+     * 2. 页脚 DOM 一改就失效。
+     * 改成按 `fullimg.php` 语义定位，与布局无关。取不到时返回空串，由上层明确报「没有原图」，
+     * 不静默降级到页面图片——否则用户点了「原图」却不知道拿到的是普通图。
+     */
     getOriginalImgUrl(): string {
-        let items = this.html.querySelector('#i6')!.children
-        return items[items.length - 1].children[1]!.getAttribute('href')!
+        return this.html.querySelector('#i6 a[href*="fullimg.php"]')?.getAttribute('href') || ''
     }
 
     /** 同上：不能依赖 `RegExp.$1` 的残留值，匹配不到就返回空串 */

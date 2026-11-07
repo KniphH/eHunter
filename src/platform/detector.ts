@@ -17,6 +17,7 @@ import { isTestEnvironmentHost } from '../../core/utils/runtimeEnv'
  * - EH: e-hentai.org/s/* or exhentai.org/s/* (reader page)
  * - NH: nhentai.net/g/[id]/[page]/ (reader page)
  * - PX: www.pixiv.net/artworks/[id] (artwork page, also /en/artworks/[id])
+ * - WNACG: wnacg.com/photos-slide-aid-[id].html (reader page)
  * - Test: localhost or IP addresses (127.0.0.1, 192.168.x.x, etc.)
  */
 export function detectPlatform(): PlatformDetectionResult {
@@ -56,6 +57,19 @@ export function detectPlatform(): PlatformDetectionResult {
   if (isPixivHost && isPixivArtworkPage) {
     return {
       platform: Platform.PX,
+      host,
+      pathname,
+      isAlbumPage: true
+    }
+  }
+
+  const isWnacgHost = hostname === 'wnacg.com' || hostname.endsWith('.wnacg.com')
+  const isWnacgReaderPage = /^\/photos-slide-aid-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
+
+  // WNACG platform: reader page only
+  if (isWnacgHost && isWnacgReaderPage) {
+    return {
+      platform: Platform.WNACG,
       host,
       pathname,
       isAlbumPage: true
