@@ -742,6 +742,14 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     }
 
     /**
+     * 超分排队优先级：离当前视口越远越晚算。
+     * 0 = 当前页，10 = 相邻页，20 = 隔一页……服务端按这个值取最小。
+     */
+    function superResPriorityOf(pageIndex: number): number {
+        return Math.abs(pageIndex - store.curViewIndex) * 10
+    }
+
+    /**
      * 超分：先把原图正常显示出来，再在后台算超分版本，算完替换 displaySrc。
      * 不阻塞首屏，也不改 `src`（原图地址要留给预取/换源/下载用）。
      */
@@ -762,7 +770,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             // displaySrc 生效后会再次触发 load，这里直接结束，避免自激
             return
         }
-        const upgraded = await superResolutionService.resolve(originalSrc)
+        const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index))
         // 这段时间里可能已经换页/换源/关掉超分，过期结果直接丢
         if (imgPageInfo.value.src !== originalSrc || !store.superResEnabled) {
             return
@@ -781,7 +789,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             if (!neighbor || !neighbor.src || neighbor.src === currentSrc || neighbor.displaySrc) {
                 continue
             }
-            superResolutionService.prefetch(neighbor.src)
+            superResolutionService.prefetch(neighbor.src, superResPriorityOf(index + offset))
         }
     }
 

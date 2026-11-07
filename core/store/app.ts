@@ -1272,7 +1272,7 @@ function upgradeAllLoadedPages(): void {
         if (!originalSrc || info.displaySrc) {
             return
         }
-        void superResolutionService.resolve(originalSrc).then((upgraded) => {
+        void superResolutionService.resolve(originalSrc, Math.abs(index - store.curViewIndex) * 10).then((upgraded) => {
             if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
                 return
             }
@@ -1281,6 +1281,23 @@ function upgradeAllLoadedPages(): void {
                 storeAction.setImgPageInfoDisplaySrc(index, upgraded)
             }
         })
+    })
+}
+
+/**
+ * 焦点页变了以后重排超分队列：当前页先算，邻居其次，越远越靠后。
+ *
+ * 只改**已排队任务**的优先级，不新建任务——没入队的页由各自的图片加载流程负责入队，
+ * 这里替它们入队会绕过 `lastLoadMode` / `displaySrc` 等前置判断。
+ */
+function prioritizeSuperResAround(center: number): void {
+    if (!store.superResEnabled) {
+        return
+    }
+    store.imgPageInfos.forEach((info, index) => {
+        if (info.src) {
+            superResolutionService.prioritize(info.src, Math.abs(index - center) * 10)
+        }
     })
 }
 
@@ -1542,7 +1559,7 @@ export const storeAction = {
             if (!originalSrc) {
                 return
             }
-            void superResolutionService.resolve(originalSrc).then((upgraded) => {
+            void superResolutionService.resolve(originalSrc, Math.abs(index - store.curViewIndex) * 10).then((upgraded) => {
                 if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
                     return
                 }
@@ -1686,6 +1703,7 @@ export const storeAction = {
             if (targetUpdater) {
                 store.curViewIndexUpdater = targetUpdater
             }
+            prioritizeSuperResAround(result)
             resetAutoFlipTimer()
         }
 

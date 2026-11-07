@@ -21,6 +21,7 @@
 import Logger from '../utils/logger'
 import { fetchImageBlob } from './ImageFetchService'
 import { reportRender } from './StatsService'
+import { DEFAULT_RENDER_PRIORITY, takeNextJob, type RenderJob } from './renderQueue'
 
 export interface SuperResShaderFile {
     name: string
@@ -710,7 +711,11 @@ class SuperResolutionService {
     private resultCache = new Map<string, CacheEntry>()
     private pending = new Map<string, Promise<string>>()
     private failed = new Set<string>()
-    private queue: Array<() => Promise<void>> = []
+    /** 待渲染任务，按 priority 出队（见 renderQueue.takeNextJob） */
+    private queue: RenderJob[] = []
+    /** url → 队列项，用于给已排队的页就地提权，避免重复入队 */
+    private queuedByUrl = new Map<string, RenderJob>()
+    private jobSeq = 0
     private draining = false
     private slot: RenderSlot | null = null
     private signatureCache = ''
@@ -752,8 +757,11 @@ class SuperResolutionService {
     /**
      * 把一页原图升级成超分版本。
      * 成功返回可直接塞进 `<img src>` 的 blob URL，失败返回原始地址（调用方据此跳过替换）。
+     *
+     * `priority` 决定排队顺序，越小越先（见 renderQueue）。调用方用「离当前页的距离」传值：
+     * 当前页 0、相邻页 10、再远 20…… 不传就排到队尾。
      */
-    async resolve(sourceUrl: string): Promise<string> {
+    async resolve(sourceUrl: string, priority: number = DEFAULT_RENDER_PRIORITY): Promise<string> {
         if (!sourceUrl) {
             return sourceUrl
         }
@@ -780,7 +788,7 @@ class SuperResolutionService {
         // 只在**真的要开算**时记一次未命中。放在前面会把「同一个失败地址被反复调用」
         // 也算进去，命中率被拉成 0%，看着像缓存没用上
         this.missCount++
-        const task = this.enqueue(() => this.render(sourceUrl))
+        const task = this.enqueue(sourceUrl, priority, () => this.render(sourceUrl))
             .then((result) => {
                 if (!result) {
                     this.failed.add(sourceUrl)
@@ -802,12 +810,26 @@ class SuperResolutionService {
         return task
     }
 
-    /** 预取：结果只进缓存，不关心返回值 */
-    prefetch(sourceUrl: string): void {
+    /** 预取：结果只进缓存，不关心返回值。priority 同 resolve */
+    prefetch(sourceUrl: string, priority: number = DEFAULT_RENDER_PRIORITY): void {
         if (!sourceUrl || this.resultCache.has(sourceUrl) || this.failed.has(sourceUrl)) {
             return
         }
-        void this.resolve(sourceUrl)
+        void this.resolve(sourceUrl, priority)
+    }
+
+    /**
+     * 调整已排队任务的优先级（数值越小越先），用于焦点页变化后就地提权。
+     * 只影响还没开始跑的任务。
+     *
+     * 正在渲染的那一页无法中断——WebGL 调用与编码是成段的，硬打断只会得到半张图，
+     * 所以焦点切换后最坏情况是当前页多等一页；这仍然远好过排在十几个预取页后面。
+     */
+    prioritize(sourceUrl: string, priority: number): void {
+        const job = sourceUrl ? this.queuedByUrl.get(sourceUrl) : undefined
+        if (job) {
+            job.priority = priority
+        }
     }
 
     isCached(sourceUrl: string): boolean {
@@ -894,15 +916,22 @@ class SuperResolutionService {
         }
     }
 
-    private enqueue<T>(job: () => Promise<T>): Promise<T> {
+    private enqueue<T>(url: string, priority: number, job: () => Promise<T>): Promise<T> {
         return new Promise<T>((resolve, reject) => {
-            this.queue.push(async () => {
-                try {
-                    resolve(await job())
-                } catch (error) {
-                    reject(error)
-                }
-            })
+            const entry: RenderJob = {
+                url,
+                priority,
+                seq: this.jobSeq++,
+                run: async () => {
+                    try {
+                        resolve(await job())
+                    } catch (error) {
+                        reject(error)
+                    }
+                },
+            }
+            this.queue.push(entry)
+            this.queuedByUrl.set(url, entry)
             void this.drain()
         })
     }
@@ -913,11 +942,13 @@ class SuperResolutionService {
         }
         this.draining = true
         try {
-            while (this.queue.length > 0) {
-                const job = this.queue.shift()
-                if (job) {
-                    await job()
+            for (;;) {
+                const job = takeNextJob(this.queue)
+                if (!job) {
+                    break
                 }
+                this.queuedByUrl.delete(job.url)
+                await job.run()
             }
         } finally {
             this.draining = false
