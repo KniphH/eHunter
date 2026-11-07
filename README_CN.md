@@ -24,6 +24,10 @@
 | 图片兜底通道 | 自动 | `<img>` 失败后改走 GM 请求，补 Referer 并校验魔数 |
 | 重试策略 | 自动 | 绕圈重试，原图不进自动循环 |
 
+<p align="center"><img src="docs/screenshots/detail-quality.png" width="680" alt="真实彩页放大局部"></p>
+
+*图 1 · 真实彩页（2560×3440）超分后的局部：眼部线条、发丝与竖排文字。*
+
 ---
 
 ## 一、像素超分
@@ -33,6 +37,10 @@
 1. **更多设置 → 像素超分** 打开开关。首次打开且尚未载入算法时，会自动弹出算法文件对话框。
 2. 点 **超分算法文件 → 选择算法文件…**，可多选 `.glsl` / `.hook` / `.txt`。插件**不内嵌任何算法**，文本存在浏览器本地（脚本管理器提供 `GM_getValue` 时用油猴存储，否则退回页面 `localStorage`），下次启动仍在。
 3. 用每行右侧的 ▲▼ 调整顺序：**从上到下依次执行**，标「先」的第一个跑，标「最后」的收尾。对话框显示每个文件的 pass 数、总 pass 数与完整执行链，也显示当前已缓存页数。
+
+<p align="center"><img src="docs/screenshots/superres-shaders.png" width="560" alt="超分算法文件对话框"></p>
+
+*图 2 · 超分算法文件对话框：两个 `.glsl` 文件共 19 个 pass，顺序可调。*
 
 ### 支持的算法形态
 
@@ -50,6 +58,10 @@
 - 任何一步失败（shader 编译、尺寸表达式、超出 `MAX_TEXTURE_SIZE`、编码）都记入 failed 并**回退到原始地址**，不会显示破图；也不会把所有 `blob:` 地址误判成「已超分」而跳过。
 - 切换输出编码或更换算法文件会清空缓存与 blob URL，避免旧格式结果残留。
 
+<p align="center"><img src="docs/screenshots/superres-validator.png" width="680" alt="WebGL2 验证器超分结果"></p>
+
+*图 3 · WebGL2 验证器实跑：520×280 原图 → 1040×760 输出，19 个 pass、约 949 ms；下方列出每个 pass 的中间纹理。*
+
 ### 输出编码
 
 同一张 2560×3440 彩图实页实测（RTX 3050 Laptop / ANGLE D3D11）：
@@ -62,11 +74,19 @@
 
 三档没有一项全面更优，所以交给用户选。不额外提供质量滑杆：每档固定一个实测过的值，不增加「看着能调、其实调不出差别」的旋钮。
 
+<p align="center"><img src="docs/screenshots/line-comparison.png" width="560" alt="双线性 2x 与 Anime4K 线条对比"></p>
+
+*图 4 · 同一条曲线的 2× 放大：左为 canvas 双线性插值，右为 Anime4K Restore + Upscale。细线边缘是算法与编码差异最直观的地方。*
+
 ---
 
 ## 二、详细状态（详细信息浮层）
 
 ### 打开与交互
+
+<p align="center"><img src="docs/screenshots/stats-overlay.png" width="400" alt="详细状态浮层"></p>
+
+*图 5 · 详细状态浮层实拍（本地 64 页测试环境，该次未开启超分）：当前页 / 整本进度 / 图片网络 / 超分 / 环境五个分区，数值均为真实采样。*
 
 - **打开**：页面菜单 →「详细信息」，或在阅读区域点**右键**。
 - **关闭**：`Esc` 或右上角 ×。

@@ -24,6 +24,10 @@ The script requires `GM_xmlhttpRequest` (image fallback) and `GM_download` (bund
 | Image fallback channel | Automatic | GM request with Referer and magic-byte validation when `<img>` fails |
 | Retry policy | Automatic | Round-robin retry; original-source mode never auto-retried |
 
+<p align="center"><img src="docs/screenshots/detail-quality.png" width="680" alt="Upscaled detail from a real colour page"></p>
+
+*Figure 1. Detail from an upscaled 2560×3440 colour page: eye linework, hair strands and vertical text.*
+
 ---
 
 ## 1. Super-resolution
@@ -33,6 +37,10 @@ The script requires `GM_xmlhttpRequest` (image fallback) and `GM_download` (bund
 1. Enable **More settings → Super resolution**. On first enable with no shaders loaded, the shader picker opens automatically.
 2. Click **Super resolution shaders → Choose files…** and pick one or more `.glsl` / `.hook` / `.txt` files. **No algorithm is bundled**: shader text is stored locally (`GM_getValue`/`GM_setValue` when the userscript manager provides them, otherwise page `localStorage`) and restored on next launch.
 3. Use the ▲▼ buttons to reorder. Files run **top to bottom** — the first ("First") runs first, the last ("Last") finishes. The dialog shows per-file pass counts, total passes, the full chain, and how many pages are cached.
+
+<p align="center"><img src="docs/screenshots/superres-shaders.png" width="560" alt="Shader file dialog"></p>
+
+*Figure 2. The shader file dialog: two `.glsl` files, 19 passes total, reorderable.*
 
 ### Supported shader form
 
@@ -50,6 +58,10 @@ This is a WebGL2 port of libplacebo hook semantics, not mpv shaders passed throu
 - Any failure (shader compile, size expression, `MAX_TEXTURE_SIZE`, encoding) marks the URL as failed and **falls back to the original address** — no broken images. A `blob:` URL is not mistaken for an already-upscaled result.
 - Changing the encoding or the shader set clears the cache and revokes blob URLs, so stale results cannot linger.
 
+<p align="center"><img src="docs/screenshots/superres-validator.png" width="680" alt="WebGL2 validator result"></p>
+
+*Figure 3. WebGL2 validator: 520×280 source → 1040×760 output, 19 passes, ~949 ms; intermediate textures are listed below.*
+
 ### Output encoding
 
 Measured on one real 2560×3440 colour page (RTX 3050 Laptop / ANGLE D3D11):
@@ -62,11 +74,19 @@ Measured on one real 2560×3440 colour page (RTX 3050 Laptop / ANGLE D3D11):
 
 No option dominates, so it is user-selectable. There is deliberately no quality slider: each option fixes one measured quality value rather than adding a knob that looks adjustable but makes no visible difference.
 
+<p align="center"><img src="docs/screenshots/line-comparison.png" width="560" alt="Bilinear 2x vs Anime4K line comparison"></p>
+
+*Figure 4. The same curve at 2×: canvas bilinear (left) vs Anime4K Restore + Upscale (right). Thin edges make algorithm differences easiest to see.*
+
 ---
 
 ## 2. Detailed stats overlay
 
 ### Opening and controls
+
+<p align="center"><img src="docs/screenshots/stats-overlay.png" width="400" alt="Detailed stats overlay"></p>
+
+*Figure 5. The overlay in the local 64-page test environment (super-resolution off in this shot): current page / album progress / image network / super-resolution / environment, all from live sampling.*
 
 - **Open**: page menu → "Detailed stats", or **right-click** inside the reader.
 - **Close**: `Esc` or the × button.
