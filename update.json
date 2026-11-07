@@ -1,55 +1,55 @@
 {
     "cn":{
-        "title":"新版本: v3.1.0",
-        "version":"3.1.0",
-        "text":"### v3.1.0\n- 新增放大镜功能（滚动模式：左键点击图片打开；书页模式：点击屏幕中间区域图片打开）\n- 支持快捷键自定义（入口：更多设置）\n- 修复「快捷设置」中的拖拽功能\n\n### v3.0.0 重点\n- 支持图片打包下载\n- 支持 iOS / iPad（移动端体验优化）\n- 图片加载失败时支持自动换源重试",
-        "time":1772323200000,
+        "title":"eHunter Enhanced v1.0.0",
+        "version":"1.0.0",
+        "text":"### v1.0.0\n- 新增基于 WebGL2 的 Anime4K 超分链路，支持自定义 .glsl pass 叠加\n- 新增渲染耗时状态浮层与跨域原图体积统计\n- 新增输出编码可选（PNG / WebP / JPEG）\n- 新增 pixiv 平台支持\n- 改进图片换源重试策略\n\n本项目是基于 hanFengSan/eHunter 的 MIT 许可增强分支，原作者 Alex Chen。",
+        "time":1794036740033,
         "duration":432000000,
         "always":true,
         "operations":[
             {
-                "name":"油猴/暴力猴脚本更新",
-                "url":"https://openuserjs.org/scripts/alexchen/eHunter"
+                "name":"下载增强版脚本",
+                "url":"https://github.com/KniphH/eHunter/releases"
             },
             {
-                "name":"iOS脚本下载",
-                "url":"https://github.com/hanFengSan/eHunter/releases"
+                "name":"问题反馈",
+                "url":"https://github.com/KniphH/eHunter/issues"
             }
         ]
     },
     "en":{
-        "title":"New version: v3.1.0",
-        "version":"3.1.0",
-        "text":"### v3.1.0\n- Added a magnifier feature (Scroll Mode: left-click an image to open; Book Mode: click an image in the center area of the screen to open)\n- Added customizable keyboard shortcuts (entry: More Settings)\n- Fixed drag behavior in Quick Settings\n\n### v3.0.0 Highlights\n- Added image bundle download\n- Added iOS / iPad support (improved mobile experience)\n- Added automatic retry with alternative sources when image loading fails",
-        "time":1772323200000,
+        "title":"eHunter Enhanced v1.0.0",
+        "version":"1.0.0",
+        "text":"### v1.0.0\n- WebGL2 Anime4K super-resolution pipeline with custom .glsl pass stacking\n- Render timing stats overlay and cross-origin source size reporting\n- Selectable output encoding (PNG / WebP / JPEG)\n- pixiv platform support\n- Improved image source retry policy\n\nThis is an MIT-licensed enhanced fork of hanFengSan/eHunter by Alex Chen.",
+        "time":1794036740033,
         "duration":432000000,
         "always":true,
         "operations":[
             {
-                "name":"Tampermonkey/Violentmonkey script update",
-                "url":"https://openuserjs.org/scripts/alexchen/eHunter"
+                "name":"Download enhanced script",
+                "url":"https://github.com/KniphH/eHunter/releases"
             },
             {
-                "name":"iOS script download",
-                "url":"https://github.com/hanFengSan/eHunter/releases"
+                "name":"Report an issue",
+                "url":"https://github.com/KniphH/eHunter/issues"
             }
         ]
     },
     "jp":{
-        "title":"新バージョン: v3.1.0",
-        "version":"3.1.0",
-        "text":"### v3.1.0\n- 拡大鏡機能を追加（スクロールモード: 画像を左クリックで起動、ブックモード: 画面中央エリアの画像をクリックで起動）\n- ショートカットキーのカスタマイズに対応（入口: 詳細設定）\n- クイック設定のドラッグ挙動を修正\n\n### v3.0.0 の主な更新\n- 画像の一括ダウンロードに対応\n- iOS / iPad 対応（モバイル体験を改善）\n- 画像読み込み失敗時に別ソースで自動再試行",
-        "time":1772323200000,
+        "title":"eHunter Enhanced v1.0.0",
+        "version":"1.0.0",
+        "text":"### v1.0.0\n- WebGL2 による Anime4K 超解像パイプライン、カスタム .glsl pass の重ね掛けに対応\n- レンダリング時間の統計オーバーレイと元画像サイズの表示\n- 出力形式の選択（PNG / WebP / JPEG）\n- pixiv プラットフォーム対応\n- 画像取得のリトライ処理を改善\n\nhanFengSan/eHunter（作者 Alex Chen）の MIT ライセンスに基づく拡張版です。",
+        "time":1794036740033,
         "duration":432000000,
         "always":true,
         "operations":[
             {
-                "name":"Tampermonkey/Violentmonkey スクリプト更新",
-                "url":"https://openuserjs.org/scripts/alexchen/eHunter"
+                "name":"拡張版スクリプトをダウンロード",
+                "url":"https://github.com/KniphH/eHunter/releases"
             },
             {
-                "name":"iOS スクリプトダウンロード",
-                "url":"https://github.com/hanFengSan/eHunter/releases"
+                "name":"問題を報告",
+                "url":"https://github.com/KniphH/eHunter/issues"
             }
         ]
     }

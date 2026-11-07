@@ -1,7 +1,7 @@
 export default {
-    version: '2.8.0',
-    homePage: 'https://github.com/hanFengSan/eHunter',
+    version: '1.0.0',
+    homePage: 'https://github.com/KniphH/eHunter/tree/ehunter-enhanced',
     email: 'c360785655@gmail.com',
-    updateServer1: 'https://jp.animesales.xyz/ehunter/update.json',
-    updateServer2: 'https://jp.animesales.xyz/ehunter/update.json'
+    updateServer1: 'https://raw.githubusercontent.com/KniphH/eHunter/ehunter-enhanced/update.json',
+    updateServer2: 'https://raw.githubusercontent.com/KniphH/eHunter/ehunter-enhanced/update.json'
 };

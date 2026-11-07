@@ -201,6 +201,17 @@ export class EHAlbumServiceImpl implements AlbumService {
     return this.imgPageInfos
   }
 
+  /**
+   * 清掉这一页缓存的地址。下面 getImgSrc 对默认模式是「有地址就直接返回」，
+   * 不清掉的话，解析出拼版预览图这类错误地址后重试只会拿回同一个坏地址。
+   */
+  invalidateImgSrc(index: number): void {
+    const info = this.imgPageInfos[index]
+    if (info) {
+      info.src = ''
+    }
+  }
+
   async getImgSrc(index: number, mode: ImgSrcMode): Promise<ImgPageInfo | Error> {
     try {
       const imgPageInfo = this.imgPageInfos[index]

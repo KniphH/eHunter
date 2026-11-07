@@ -3,6 +3,11 @@ export interface ImgPageInfo {
     index: number,
     pageUrl: string,
     src: string,
+    /**
+     * 超分后的替代图（blob URL）。`src` 始终保留原始地址，
+     * 渲染时优先用 displaySrc，关掉超分只要清空它即可回退。
+     */
+    displaySrc?: string,
     heightOfWidth: number,
     thumbHeight?: number,
     thumbWidth?: number,

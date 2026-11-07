@@ -8,6 +8,7 @@ import { Platform } from './types'
 import type { AlbumService } from '../../core/service/AlbumService'
 import { EHAlbumServiceImpl } from './eh/service/AlbumServiceImpl'
 import { NHAlbumServiceImpl } from './nh/service/AlbumServiceImpl'
+import { PixivAlbumServiceImpl } from './pixiv/service/AlbumServiceImpl'
 import { TestAlbumService } from './test/AlbumService'
 
 /**
@@ -24,6 +25,9 @@ export function createPlatformService(platform: Platform): AlbumService {
     
     case Platform.NH:
       return new NHAlbumServiceImpl()
+    
+    case Platform.PX:
+      return new PixivAlbumServiceImpl()
     
     case Platform.TEST:
       return new TestAlbumService('')

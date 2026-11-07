@@ -153,6 +153,14 @@ export class NHAlbumServiceImpl implements AlbumService {
     return this.imgPageInfos
   }
 
+  /** 清掉缓存的地址，否则下面命中 `imgPageInfo.src` 就直接返回，重试拿不回新地址 */
+  invalidateImgSrc(index: number): void {
+    const info = this.imgPageInfos[index]
+    if (info) {
+      info.src = ''
+    }
+  }
+
   async getImgSrc(index: number, mode: ImgSrcMode): Promise<ImgPageInfo | Error> {
     try {
       const imgPageInfo = this.imgPageInfos[index]

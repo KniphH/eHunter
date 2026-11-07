@@ -12,6 +12,8 @@ export enum Platform {
   EH = 'EH',
   /** NHentai platform (nhentai.net) */
   NH = 'NH',
+  /** Pixiv platform (www.pixiv.net) */
+  PX = 'PX',
   /** Test platform (localhost, IP addresses) */
   TEST = 'TEST'
 }

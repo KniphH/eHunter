@@ -25,6 +25,8 @@ export function getFieldValue(id: string): any {
         case 'magnifierAreaSize': return store.magnifierAreaSize
         case 'lang': return i18n.value.lang
         case 'autoRetryByOtherSource': return store.autoRetryByOtherSource
+        case 'superResEnabled': return store.superResEnabled
+        case 'superResEncode': return store.superResEncode
         default: return null
     }
 }
@@ -53,6 +55,8 @@ export function setFieldValue(id: string, val: any): void {
         case 'magnifierAreaSize': storeAction.setMagnifierAreaSize(val); break
         case 'lang': storeAction.setLang(val); break
         case 'autoRetryByOtherSource': storeAction.setAutoRetryByOtherSource(val); break
+        case 'superResEnabled': storeAction.setSuperResEnabled(val); break
+        case 'superResEncode': storeAction.setSuperResEncode(val); break
     }
 }
 

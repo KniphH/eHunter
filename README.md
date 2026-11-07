@@ -1,7 +1,13 @@
-[中文版](https://github.com/hanFengSan/eHunter/blob/master/README_CN.md)
+[中文版](https://github.com/KniphH/eHunter/blob/ehunter-enhanced/README_CN.md)
 
 # eHunter
 Provide scroll mode and book mode for a better reading experience.
+
+> **eHunter Enhanced v1.0.0** (branch `ehunter-enhanced`) is an MIT-licensed enhanced fork of [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter). Original author Alex Chen, Copyright (c) 2017 Alex; see [LICENSE](LICENSE). It uses its own 1.0.0 version line and a distinct userscript identity, so it can be installed alongside the original.
+>
+> Added on top of upstream master (`43a0a13`): a WebGL2 Anime4K super-resolution pipeline with custom `.glsl` pass stacking, a render timing stats overlay, selectable output encoding (PNG / WebP / JPEG), pixiv platform support, and an improved image source retry policy.
+>
+> Install from this repository's Releases (`ehunter-enhanced.user.js`). Please file issues [here](https://github.com/KniphH/eHunter/issues), not upstream. The original documentation is kept below.
 
 # Preview
 <img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_4.png" style="width: 800px; display: block; padding: 10px;"/>

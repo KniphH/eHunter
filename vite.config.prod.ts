@@ -13,17 +13,22 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 }
 
 const userscriptBanner = `// ==UserScript==
-// @name         eHunter
-// @namespace    http://tampermonkey.net/
+// @name         eHunter Enhanced
+// @namespace    https://github.com/KniphH/eHunter
 // @version      ${pkg.version}
-// @description  This extension provides a scroll mode and book mode to e-hentai/exhentai/nhentai, for the best reading experince!  此扩展为e-hentai/exhentai/nhentai提供一个滚动模式和书本模式, 提供良好的阅读体验.
-// @supportURL   https://github.com/hanFengSan/eHunter/issues
-// @author       Alex Chen
+// @description  Enhanced fork of eHunter: scroll/book reader for e-hentai/exhentai/nhentai/pixiv with Anime4K super-resolution, output encoding and stats overlay.  eHunter 增强版：卷轴/书本阅读，附超分放大、输出编码与状态浮层.
+// @supportURL   https://github.com/KniphH/eHunter/issues
+// @author       Alex Chen; enhanced by KniphH
 // @match        https://exhentai.org/*
 // @match        https://e-hentai.org/*
 // @match        https://nhentai.net/*
+// @match        https://www.pixiv.net/*
+// @match        https://pixiv.net/*
 // @connect      hath.network
 // @connect      nhentai.net
+// @connect      www.pixiv.net
+// @connect      pixiv.net
+// @connect      i.pximg.net
 // @connect      githubusercontent.com
 // @connect      jp.animesales.xyz
 // @grant        GM_xmlhttpRequest

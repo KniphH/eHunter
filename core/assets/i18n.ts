@@ -519,6 +519,106 @@ export default <any>{
         en: 'Auto source retry',
         jp: '自動ソース再試行'
     },
+    superResolution: {
+        cn: '像素超分',
+        en: 'Super resolution',
+        jp: '超解像'
+    },
+    superResolutionTip: {
+        cn: '用你自己选的 .glsl 算法文件（Anime4K 等）对图片做超分，先到下方「超分算法文件」里选文件',
+        en: 'Upscale pages with your own .glsl shader files (Anime4K etc.); pick files in "Super resolution shaders" first',
+        jp: '自分で選んだ .glsl シェーダー（Anime4K など）で超解像します。先に「超解像シェーダー」でファイルを選択してください'
+    },
+    superResEncode: {
+        cn: '输出编码',
+        en: 'Output encoding',
+        jp: '出力エンコード'
+    },
+    superResEncodeTip: {
+        cn: '同一张 2560×3440 的实测：PNG 11.3MB / 编码 0.36s / 解码 0.11s，WebP 0.55MB / 0.68s / 0.07s，JPEG 0.93MB / 0.08s / 0.03s。PNG 无损、出图比 WebP 快一倍，但最吃内存（8 页缓存约 90MB）；WebP 体积只有 1/20、解码更快，代价是每页多等约 0.3s；JPEG 最快最省，但有损压缩会在细线和小字上留下痕迹。',
+        en: 'Measured on the same 2560×3440 page: PNG 11.3MB / encode 0.36s / decode 0.11s, WebP 0.55MB / 0.68s / 0.07s, JPEG 0.93MB / 0.08s / 0.03s. PNG is lossless and twice as fast to encode as WebP, but it is the heaviest in memory (~90MB for 8 cached pages). WebP is 1/20 the size and decodes faster, at ~0.3s extra encoding per page. JPEG is fastest and lightest, but lossy — fine lines and small text pick up artifacts.',
+        jp: '同じ 2560×3440 の実測：PNG 11.3MB / エンコード 0.36s / デコード 0.11s、WebP 0.55MB / 0.68s / 0.07s、JPEG 0.93MB / 0.08s / 0.03s。PNG は可逆で WebP より 2 倍速く書き出せますが、メモリを最も食います（8 ページで約 90MB）。WebP は 1/20 のサイズでデコードも速く、代わりに 1 ページあたり約 0.3s 余分にかかります。JPEG は最速・最軽量ですが非可逆で、細い線や小さい文字に劣化が残ります。'
+    },
+    superResEncodePng: {
+        cn: 'PNG（默认，无损）',
+        en: 'PNG (default, lossless)',
+        jp: 'PNG（既定・可逆）'
+    },
+    superResEncodeWebp: {
+        cn: 'WebP（体积最小）',
+        en: 'WebP (smallest)',
+        jp: 'WebP（最小サイズ）'
+    },
+    superResEncodeJpeg: {
+        cn: 'JPEG（最快，有损）',
+        en: 'JPEG (fastest, lossy)',
+        jp: 'JPEG（最速・非可逆）'
+    },
+    superResolutionShaders: {
+        cn: '超分算法文件',
+        en: 'Super resolution shaders',
+        jp: '超解像シェーダー'
+    },
+    superResolutionShadersTip: {
+        cn: '按从上到下的顺序依次执行：第 1 个先跑，最后一个最后跑。文件名后面的数字是它包含的 pass 数，逐张累加。多选时文件顺序由系统排序决定，可以用每行右侧的箭头调整。',
+        en: 'Runs top to bottom: the first file executes first, the last one last. The number is that file\'s pass count, added up in sequence. Multi-select order follows the system sort, so use the arrows on each row to fix it.',
+        jp: '上から下へ順番に実行します。1 番目が最初、最後のものが最後です。数字はそのファイルのパス数で、順に積み上がります。複数選択時の順序はシステムの並び順になるため、各行の矢印で調整してください。'
+    },
+    superResolutionConfigure: {
+        cn: '选择算法文件…',
+        en: 'Choose shader files…',
+        jp: 'シェーダーを選択…'
+    },
+    superResolutionEmpty: {
+        cn: '尚未选择算法文件',
+        en: 'No shader selected',
+        jp: 'シェーダー未選択'
+    },
+    superResolutionLoaded: {
+        cn: '已载入',
+        en: 'Loaded',
+        jp: '読み込み済み'
+    },
+    superResolutionPassCount: {
+        cn: '个 pass',
+        en: 'passes',
+        jp: 'パス'
+    },
+    superResolutionClear: {
+        cn: '清除',
+        en: 'Clear',
+        jp: 'クリア'
+    },
+    superResolutionCacheInfo: {
+        cn: '已缓存',
+        en: 'Cached',
+        jp: 'キャッシュ'
+    },
+    superResolutionOrder: {
+        cn: '执行顺序',
+        en: 'Execution order',
+        jp: '実行順序'
+    },
+    superResolutionStepFirst: {
+        cn: '先',
+        en: 'first',
+        jp: '最初'
+    },
+    superResolutionStepLast: {
+        cn: '最后',
+        en: 'last',
+        jp: '最後'
+    },
+    superResolutionMoveUp: {
+        cn: '上移（更早执行）',
+        en: 'Move up (runs earlier)',
+        jp: '上へ（先に実行）'
+    },
+    superResolutionMoveDown: {
+        cn: '下移（更晚执行）',
+        en: 'Move down (runs later)',
+        jp: '下へ（後に実行）'
+    },
     autoSourceRetryTip: {
         cn: '加载失败时自动尝试换源',
         en: 'Automatically retry with another source when loading fails',
@@ -808,5 +908,387 @@ export default <any>{
       cn: '设置放大区域尺寸（20px-300px）',
       en: 'Set focus area size (20px-300px)',
       jp: 'フォーカス領域サイズを設定 (20px-300px)'
+    },
+    statsTitle: {
+      cn: '详细状态',
+      en: 'Statistics',
+      jp: '統計情報'
+    },
+    statsCopy: {
+      cn: '复制',
+      en: 'Copy',
+      jp: 'コピー'
+    },
+    statsReset: {
+      cn: '清空',
+      en: 'Reset',
+      jp: 'リセット'
+    },
+    statsClose: {
+      cn: '关闭（Esc）',
+      en: 'Close (Esc)',
+      jp: '閉じる (Esc)'
+    },
+    statsHint: {
+      cn: '页面菜单 / 右键打开 · 拖动标题栏移动 · Esc 关闭',
+      en: 'Open from page menu or right-click · drag the title bar · Esc closes',
+      jp: 'ページメニュー / 右クリックで開く · タイトルバーをドラッグで移動 · Esc で閉じる'
+    },
+    statsSectionPage: {
+      cn: '当前页',
+      en: 'Current page',
+      jp: '現在のページ'
+    },
+    statsSectionAlbum: {
+      cn: '整本进度',
+      en: 'Album progress',
+      jp: '全体の進捗'
+    },
+    statsOriginalSize: {
+      cn: '原图尺寸',
+      en: 'Original size',
+      jp: '原寸'
+    },
+    statsSuperSize: {
+      cn: '超分尺寸',
+      en: 'Upscaled size',
+      jp: '超解像サイズ'
+    },
+    statsOriginalBytes: {
+      cn: '原图体积',
+      en: 'Original file size',
+      jp: '原寸ファイル容量'
+    },
+    statsSuperBytes: {
+      cn: '超分体积',
+      en: 'Upscaled file size',
+      jp: '超解像ファイル容量'
+    },
+    statsLoadedPages: {
+      cn: '已加载',
+      en: 'Loaded',
+      jp: '読込済'
+    },
+    statsLoadingPages: {
+      cn: '正在加载',
+      en: 'Loading now',
+      jp: '読込中'
+    },
+    statsFailedPages: {
+      cn: '失败',
+      en: 'Failed',
+      jp: '失敗'
+    },
+    statsPendingPages: {
+      cn: '未开始',
+      en: 'Not yet',
+      jp: '未着手'
+    },
+    statsAvgLoadMs: {
+      cn: '平均耗时',
+      en: 'Avg load',
+      jp: '平均時間'
+    },
+    statsOriginalTotal: {
+      cn: '原图合计',
+      en: 'Original total',
+      jp: '原寸合計'
+    },
+    statsSuperTotal: {
+      cn: '超分合计',
+      en: 'Upscaled total',
+      jp: '超解像合計'
+    },
+    statsPagesUnit: {
+      cn: '页',
+      en: 'pages',
+      jp: 'ページ'
+    },
+    statsLastRenderSize: {
+      cn: '输出体积',
+      en: 'Output size',
+      jp: '出力容量'
+    },
+    statsSectionNet: {
+      cn: '图片网络',
+      en: 'Image network',
+      jp: '画像通信'
+    },
+    statsSectionSuperRes: {
+      cn: '超分',
+      en: 'Super resolution',
+      jp: '超解像'
+    },
+    statsSectionEnv: {
+      cn: '环境',
+      en: 'Environment',
+      jp: '環境'
+    },
+    statsNoData: {
+      cn: '暂无数据',
+      en: 'No data',
+      jp: 'データなし'
+    },
+    statsPageIndex: {
+      cn: '页码',
+      en: 'Page',
+      jp: 'ページ'
+    },
+    statsMode: {
+      cn: '取址模式',
+      en: 'Source mode',
+      jp: '取得モード'
+    },
+    statsModeDefault: {
+      cn: '默认',
+      en: 'Default',
+      jp: '既定'
+    },
+    statsModeFast: {
+      cn: '快速',
+      en: 'Fast',
+      jp: '高速'
+    },
+    statsModeOrigin: {
+      cn: '原图',
+      en: 'Original',
+      jp: '原寸'
+    },
+    statsModeChangeSource: {
+      cn: '换源',
+      en: 'Other source',
+      jp: '別ソース'
+    },
+    statsStatus: {
+      cn: '状态',
+      en: 'Status',
+      jp: '状態'
+    },
+    statsStatusWaiting: {
+      cn: '等待',
+      en: 'Waiting',
+      jp: '待機'
+    },
+    statsStatusLoading: {
+      cn: '加载中',
+      en: 'Loading',
+      jp: '読み込み中'
+    },
+    statsStatusError: {
+      cn: '失败',
+      en: 'Failed',
+      jp: '失敗'
+    },
+    statsStatusLoaded: {
+      cn: '已加载',
+      en: 'Loaded',
+      jp: '読込済'
+    },
+    statsRunning: {
+      cn: '进行中',
+      en: 'running',
+      jp: '実行中'
+    },
+    statsPaused: {
+      cn: '已暂停（页面不可见）',
+      en: 'paused (page invisible)',
+      jp: '一時停止（非表示）'
+    },
+    statsSession: {
+      cn: '本次会话',
+      en: 'Session',
+      jp: '今回のセッション'
+    },
+    statsAttempts: {
+      cn: '尝试',
+      en: 'attempts',
+      jp: '試行'
+    },
+    statsFetchMs: {
+      cn: '取址耗时',
+      en: 'Resolve time',
+      jp: '取得時間'
+    },
+    statsDisplaySize: {
+      cn: '显示尺寸',
+      en: 'Display size',
+      jp: '表示サイズ'
+    },
+    statsSuperResLine: {
+      cn: '超分结果',
+      en: 'Upscaled',
+      jp: '超解像結果'
+    },
+    statsDisplayKind: {
+      cn: '图片来源',
+      en: 'Source of image',
+      jp: '画像の出所'
+    },
+    statsKindNone: {
+      cn: '无',
+      en: 'none',
+      jp: 'なし'
+    },
+    statsKindUrl: {
+      cn: '原地址',
+      en: 'direct URL',
+      jp: '元 URL'
+    },
+    statsKindThumb: {
+      cn: '缩略图',
+      en: 'thumbnail',
+      jp: 'サムネイル'
+    },
+    statsKindBlob: {
+      cn: '兜底通道',
+      en: 'fallback channel',
+      jp: '代替経路'
+    },
+    statsKindSuperres: {
+      cn: '超分结果',
+      en: 'super-resolved',
+      jp: '超解像結果'
+    },
+    statsSrcHost: {
+      cn: '图片域',
+      en: 'Image host',
+      jp: '画像ホスト'
+    },
+    statsLastError: {
+      cn: '最近错误',
+      en: 'Last error',
+      jp: '直近のエラー'
+    },
+    statsTotal: {
+      cn: '累计',
+      en: 'Total',
+      jp: '累計'
+    },
+    statsTimes: {
+      cn: '次',
+      en: 'req',
+      jp: '回'
+    },
+    statsFailCount: {
+      cn: '失败',
+      en: 'Failed',
+      jp: '失敗'
+    },
+    statsAvgSpeed: {
+      cn: '平均速度',
+      en: 'Avg speed',
+      jp: '平均速度'
+    },
+    statsEnabled: {
+      cn: '开启',
+      en: 'on',
+      jp: 'オン'
+    },
+    statsDisabled: {
+      cn: '关闭',
+      en: 'off',
+      jp: 'オフ'
+    },
+    statsShaderCount: {
+      cn: '着色器',
+      en: 'Shaders',
+      jp: 'シェーダ'
+    },
+    // 注意：`statsEncode` 这个名字已经被"渲染拆解"里的「编码 473ms」占了，
+    // 这里必须换个键，否则同名字段后者覆盖前者，两处会显示成同一个词
+    statsOutEncode: {
+      cn: '输出编码',
+      en: 'Encoding',
+      jp: 'エンコード'
+    },
+    statsChain: {
+      cn: '执行顺序',
+      en: 'Chain',
+      jp: '実行順'
+    },
+    statsCache: {
+      cn: '缓存',
+      en: 'Cache',
+      jp: 'キャッシュ'
+    },
+    statsHit: {
+      cn: '命中',
+      en: 'hit',
+      jp: 'ヒット'
+    },
+    statsMiss: {
+      cn: '未命中',
+      en: 'miss',
+      jp: 'ミス'
+    },
+    statsQueued: {
+      cn: '排队',
+      en: 'queued',
+      jp: '待ち'
+    },
+    statsLastRender: {
+      cn: '最近渲染',
+      en: 'Last render',
+      jp: '直近の描画'
+    },
+    statsBreakdown: {
+      cn: '渲染拆解',
+      en: 'Breakdown',
+      jp: '内訳'
+    },
+    statsDecode: {
+      cn: '解码',
+      en: 'decode',
+      jp: 'デコード'
+    },
+    statsGpu: {
+      cn: '图形',
+      en: 'gpu',
+      jp: 'GPU'
+    },
+    statsEncode: {
+      cn: '编码',
+      en: 'encode',
+      jp: 'エンコード'
+    },
+    statsTotalMs: {
+      cn: '合计',
+      en: 'total',
+      jp: '合計'
+    },
+    statsPassUnit: {
+      cn: 'pass',
+      en: 'passes',
+      jp: 'pass'
+    },
+    statsVersion: {
+      cn: '版本',
+      en: 'Version',
+      jp: 'バージョン'
+    },
+    statsViewport: {
+      cn: '视口',
+      en: 'Viewport',
+      jp: 'ビューポート'
+    },
+    statsFps: {
+      cn: '帧率',
+      en: 'FPS',
+      jp: 'FPS'
+    },
+    statsHeap: {
+      cn: 'JS 堆',
+      en: 'JS heap',
+      jp: 'JS ヒープ'
+    },
+    statsNodeUnit: {
+      cn: '节点',
+      en: 'nodes',
+      jp: 'ノード'
+    },
+    statsMenuEntry: {
+      cn: '详细信息',
+      en: 'Statistics',
+      jp: '統計情報'
     }
 }

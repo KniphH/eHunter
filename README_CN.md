@@ -1,6 +1,12 @@
 # eHunter
 提供卷轴式/书本式阅读
 
+> **eHunter Enhanced v1.0.0**（`ehunter-enhanced` 分支）是基于上游 [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) 的 MIT 许可增强分支。原作者 Alex Chen，Copyright (c) 2017 Alex，许可声明见 [LICENSE](LICENSE)。本分支独立编号为 1.0.0，油猴脚本身份与原版不同，两者可同时安装。
+>
+> 相对上游 master（`43a0a13`）主要新增：WebGL2 Anime4K 超分链路（支持自定义 .glsl pass 叠加）、渲染耗时状态浮层与跨域原图体积统计、输出编码可选（PNG / WebP / JPEG）、pixiv 平台支持、图片换源重试策略改进。
+>
+> 安装产物见本仓库 Releases 的 `ehunter-enhanced.user.js`；问题请提到[本仓库 Issues](https://github.com/KniphH/eHunter/issues)，不要提到上游。上游原有说明保留在下方。
+
 # 预览
 <img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_4.png" style="width: 800px; display: block; padding: 10px;"/>
 <img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_5_1.png" style="width: 800px; display: block; padding: 10px;"/>

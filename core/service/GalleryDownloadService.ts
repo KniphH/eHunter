@@ -138,6 +138,20 @@ function isDevRuntimeForDownload(): boolean {
     return isTestEnvironment()
 }
 
+/**
+ * Pixiv's CDN (i.pximg.net) rejects requests that carry no pixiv.net Referer.
+ *
+ * The browser attaches one automatically for `<img>` tags, which is why
+ * reading works, but `GM_xmlhttpRequest` sends none - so downloads have to
+ * set it explicitly or every image 403s.
+ */
+function buildDownloadHeaders(url: string): Record<string, string> | undefined {
+    if (/pixiv|pximg/i.test(url)) {
+        return { Referer: 'https://www.pixiv.net/' }
+    }
+    return undefined
+}
+
 async function fetchBlobByGMXhr(url: string, timeoutMs = 30000): Promise<Blob> {
     const gmXhr = (globalThis as any).GM_xmlhttpRequest
     if (typeof gmXhr !== 'function') {
@@ -149,6 +163,7 @@ async function fetchBlobByGMXhr(url: string, timeoutMs = 30000): Promise<Blob> {
             url,
             responseType: 'arraybuffer',
             timeout: timeoutMs,
+            headers: buildDownloadHeaders(url),
             onload: (resp: any) => {
                 if (!resp || resp.status < 200 || resp.status >= 300 || !resp.response) {
                     reject(new Error(`GM_XHR_HTTP_${resp?.status || 'UNKNOWN'}`))

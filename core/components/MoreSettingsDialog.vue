@@ -46,6 +46,15 @@
                                         :active="!!getFieldValue(fieldId)"
                                         @change="(val) => onFieldChange(fieldId, val)" />
                                 </div>
+                                <div class="ehunter-row">
+                                    <div class="ehunter-label-block">
+                                        <span class="ehunter-label">{{ i18n.superResolutionShaders }}</span>
+                                        <p class="ehunter-tip">{{ i18n.superResolutionShadersTip }}</p>
+                                    </div>
+                                    <button class="ehunter-action" type="button" @click="superResDialogActive = true">
+                                        {{ superResSummary }}
+                                    </button>
+                                </div>
                             </article>
 
                             <article ref="scrollRef" class="ehunter-group" data-category="scroll">
@@ -236,15 +245,21 @@
         :md-text="i18n.resetAllConfirmDesc"
         :operations="resetOperations"
         @close="storeAction.hideFactoryResetDialog" />
+    <SuperResShaderDialog
+        :active="superResDialogActive"
+        @close="closeSuperResDialog"
+        @changed="refreshSuperResFiles" />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import pkgJson from '../../package.json'
 import DropOption from './widget/DropOption.vue'
 import NumDropOption from './widget/NumDropOption.vue'
 import SimpleSwitch from './widget/SimpleSwitch.vue'
 import SimpleDialog from './widget/SimpleDialog.vue'
+import SuperResShaderDialog from './dialog/SuperResShaderDialog.vue'
+import { superResolutionService } from '../service/SuperResolutionService'
 import { i18n } from '../store/i18n'
 import { store, storeAction, settingsCategories, quickSettingOptions, settingFieldMap, shortcutActionDefinitions, shortcutKeyCandidates, type ShortcutActionId } from '../store/app'
 import { getFieldValue, setFieldValue, getDropList, getNumList, getNumSuffix, getDialogFieldIds } from '../store/settingFieldRuntime'
@@ -258,6 +273,36 @@ const shortcutsRef = ref<HTMLElement | null>(null)
 const otherRef = ref<HTMLElement | null>(null)
 const dragSourceId = ref('')
 const openedShortcutDropdown = ref<ShortcutActionId | ''>('')
+const superResDialogActive = ref(false)
+const superResFiles = ref(superResolutionService.getShaderFiles())
+
+const superResSummary = computed(() => {
+    const files = superResFiles.value
+    if (files.length === 0) {
+        return i18n.value.superResolutionConfigure
+    }
+    if (files.length === 1) {
+        return files[0].name
+    }
+    return `${files[0].name} +${files.length - 1}`
+})
+
+function refreshSuperResFiles(): void {
+    superResFiles.value = superResolutionService.getShaderFiles()
+}
+
+function closeSuperResDialog(): void {
+    superResDialogActive.value = false
+    refreshSuperResFiles()
+}
+
+// 开关打开但一个算法文件都没选时，直接把选择面板推到用户面前，
+// 否则开关点了毫无反应，看起来像坏了。
+watch(() => store.superResEnabled, (enabled) => {
+    if (enabled && !superResolutionService.hasShaders()) {
+        superResDialogActive.value = true
+    }
+})
 const pinnedQuickSettingId = 'readingMode'
 
 const versionText = computed(() => pkgJson.version)

@@ -18,6 +18,7 @@ import {
     getThumbExpandSegmentByPage,
 } from '../model/thumbExpand'
 import { readLayoutPreference, writeLayoutPreference } from './layoutPreference'
+import { superResolutionService, setOutputEncode, type SuperResEncode, type SuperResShaderFile } from '../service/SuperResolutionService'
 import { GalleryDownloadService } from '../service/GalleryDownloadService'
 import type { DownloadStatusEvent, DownloadTaskPhase, DownloadSeverity } from '../service/GalleryDownloadService'
 
@@ -157,7 +158,7 @@ export interface SettingFieldDefinition {
     showInTopBar: boolean
     showInDialog: boolean
     dialogCategory?: SettingsPanelCategory
-    dropKey?: 'readingModeList' | 'bookDirection' | 'pageTurnAnimation' | 'langList'
+    dropKey?: 'readingModeList' | 'bookDirection' | 'pageTurnAnimation' | 'langList' | 'superResEncodeList'
     numKey?: 'widthScale' | 'loadNum' | 'downloadChunkSize' | 'volumeSize' | 'pagesPerScreen' | 'autoFlipFrequency' | 'wheelSensitivity' | 'scrollPageMargin' | 'magnifierZoom' | 'magnifierAreaSize'
     min?: number
     max?: number
@@ -369,6 +370,27 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         showInTopBar: true,
         showInDialog: true,
         dialogCategory: 'general',
+    },
+    {
+        id: 'superResEnabled',
+        control: 'switch',
+        labelI18nKey: 'superResolution',
+        tipI18nKey: 'superResolutionTip',
+        modeScope: 'both',
+        showInTopBar: false,
+        showInDialog: true,
+        dialogCategory: 'general',
+    },
+    {
+        id: 'superResEncode',
+        control: 'drop',
+        labelI18nKey: 'superResEncode',
+        tipI18nKey: 'superResEncodeTip',
+        modeScope: 'both',
+        showInTopBar: false,
+        showInDialog: true,
+        dialogCategory: 'general',
+        dropKey: 'superResEncodeList',
     },
     {
         id: 'magnifierZoom',
@@ -849,6 +871,8 @@ function persistUnifiedSettingsState() {
             magnifierAreaSize: store.magnifierAreaSize,
             lang: lang.value,
             autoRetryByOtherSource: store.autoRetryByOtherSource,
+            superResEnabled: store.superResEnabled,
+            superResEncode: store.superResEncode,
             hasShownWelcomeInstruction: store.hasShownWelcomeInstruction,
             hasShownBookInstruction: store.hasShownBookInstruction,
             lastSeenVersionNotice: store.lastSeenVersionNotice,
@@ -901,6 +925,7 @@ function applyUnifiedSettingsPreference() {
         ['showBookThumbView', 'showBookThumbView'],
         ['IsReverseBookWheeFliplDirection', 'IsReverseBookWheeFliplDirection'],
         ['autoRetryByOtherSource', 'autoRetryByOtherSource'],
+        ['superResEnabled', 'superResEnabled'],
         ['hasShownWelcomeInstruction', 'hasShownWelcomeInstruction'],
         ['hasShownBookInstruction', 'hasShownBookInstruction'],
     ]
@@ -914,6 +939,11 @@ function applyUnifiedSettingsPreference() {
     if (typeof setting.lang === 'string' && ['cn', 'en', 'jp'].includes(setting.lang)) {
         lang.value = setting.lang
     }
+    // 编码要同步给超分服务：老存档里没有这个字段就按 png 处理
+    store.superResEncode = setting.superResEncode === 'webp' || setting.superResEncode === 'jpeg'
+        ? setting.superResEncode
+        : 'png'
+    setOutputEncode(store.superResEncode)
     if (typeof setting.hasShownWelcomeInstruction === 'boolean') {
         store.hasShownWelcomeInstruction = setting.hasShownWelcomeInstruction
     } else {
@@ -1051,6 +1081,8 @@ export const store = reactive({
     autoRetryByOtherSource: true,
     magnifierZoom: 3,
     magnifierAreaSize: 80,
+    superResEnabled: false,
+    superResEncode: <SuperResEncode>'png',
     hasShownWelcomeInstruction: false,
     hasShownBookInstruction: false,
     lastSeenVersionNotice: '',
@@ -1165,6 +1197,11 @@ export const settingConf = {
         { i18nKey: 'scrollMode', val: 0 },
         { i18nKey: 'bookMode', val: 1 },
     ],
+    superResEncodeList: [
+        { i18nKey: 'superResEncodePng', val: 'png' },
+        { i18nKey: 'superResEncodeWebp', val: 'webp' },
+        { i18nKey: 'superResEncodeJpeg', val: 'jpeg' },
+    ],
     widthScale: {
         list: [40, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
         suffix: '%'
@@ -1222,6 +1259,29 @@ export const settingConf = {
         { name: '简体中文', abbrName: 'CN', val: 'cn' },
         { name: '日本語', abbrName: 'JP', val: 'jp' }
     ]
+}
+
+/**
+ * 打开超分开关时，把已经加载出来的页补跑一遍。
+ * 图片是在 img 的 load 事件里触发超分的，已经显示在屏幕上的页不会自己重来，
+ * 所以这里主动补一次，否则用户开完开关会以为没生效。
+ */
+function upgradeAllLoadedPages(): void {
+    store.imgPageInfos.forEach((info, index) => {
+        const originalSrc = info.src
+        if (!originalSrc || info.displaySrc) {
+            return
+        }
+        void superResolutionService.resolve(originalSrc).then((upgraded) => {
+            if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
+                return
+            }
+            const current = store.imgPageInfos[index]
+            if (current && current.src === originalSrc) {
+                storeAction.setImgPageInfoDisplaySrc(index, upgraded)
+            }
+        })
+    })
 }
 
 export const storeAction = {
@@ -1435,6 +1495,86 @@ export const storeAction = {
     setAutoRetryByOtherSource: (val: boolean) => {
         store.autoRetryByOtherSource = val
         persistUnifiedSettingsState()
+    },
+    setSuperResEnabled: (val: boolean) => {
+        store.superResEnabled = val
+        persistUnifiedSettingsState()
+        if (!val) {
+            // 关掉就把替代图全部撤掉回落到原图，并释放 blob 缓存
+            store.imgPageInfos.forEach((info, index) => {
+                if (info.displaySrc) {
+                    storeAction.setImgPageInfoDisplaySrc(index, '')
+                }
+            })
+            superResolutionService.clearCache()
+            return
+        }
+        upgradeAllLoadedPages()
+    },
+    /**
+     * 换超分输出的编码。
+     *
+     * 已经画在图上的页是旧格式的 blob，这里让它们重新出一次，
+     * 否则用户改完看不到任何变化（体积、画质都没变），会以为没生效。
+     * 顺序和服务里换着色器一样：先摘 displaySrc，再让服务回收 blob。
+     */
+    setSuperResEncode: (val: SuperResEncode) => {
+        if (store.superResEncode === val) {
+            return
+        }
+        store.superResEncode = val
+        persistUnifiedSettingsState()
+        // 只重跑"正显示着超分结果"的页。别的页要么没超分过、要么早滚出屏幕了，
+        // 为了一次编码切换把整本重新算一遍是浪费。
+        const indexes: number[] = []
+        store.imgPageInfos.forEach((info, index) => {
+            if (info.displaySrc) {
+                indexes.push(index)
+                storeAction.setImgPageInfoDisplaySrc(index, '')
+            }
+        })
+        setOutputEncode(val)
+        if (!store.superResEnabled) {
+            return
+        }
+        indexes.forEach((index) => {
+            const originalSrc = store.imgPageInfos[index].src
+            if (!originalSrc) {
+                return
+            }
+            void superResolutionService.resolve(originalSrc).then((upgraded) => {
+                if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
+                    return
+                }
+                storeAction.setImgPageInfoDisplaySrc(index, upgraded)
+            })
+        })
+    },
+    setImgPageInfoDisplaySrc: (index: number, val: string) => {
+        if (index >= 0 && index < store.imgPageInfos.length) {
+            store.imgPageInfos[index].displaySrc = val
+        }
+    },
+    /** 换了算法文件之后补跑已经加载出来的页（幂等，走服务端缓存） */
+    refreshSuperResPages: () => {
+        if (store.superResEnabled) {
+            upgradeAllLoadedPages()
+        }
+    },
+    /**
+     * 换/清算法文件。顺序很重要：先把 displaySrc 摘掉，再让服务 revoke 旧 blob，
+     * 否则 `<img>` 还指着已经被回收的地址，图会直接裂掉。
+     */
+    applySuperResShaders: (files: SuperResShaderFile[]) => {
+        store.imgPageInfos.forEach((info, index) => {
+            if (info.displaySrc) {
+                storeAction.setImgPageInfoDisplaySrc(index, '')
+            }
+        })
+        superResolutionService.setShaderFiles(files)
+        if (store.superResEnabled) {
+            upgradeAllLoadedPages()
+        }
     },
     setShortcutBinding: (id: ShortcutActionId, val: string) => {
         store.shortcutBindings[id] = normalizeShortcutToken(val)
@@ -1721,9 +1861,9 @@ export const storeAction = {
 
 let isInited = false
 export function init(albumService: AlbumService) {
-    if (isInited) {
-        return
-    }
+    // Always refresh album data from the (possibly new) service. This is what allows
+    // SPA re-initialization on Pixiv: when the URL changes without a full reload we call
+    // init() again with a fresh service instead of tearing down the app.
     store.pageCount = albumService.getPageCount()
     runtimeAlbumService = albumService
 
@@ -1741,12 +1881,17 @@ export function init(albumService: AlbumService) {
     applyUnifiedSettingsPreference()
     readerLayoutPreference = readLayoutPreference()
     applyCurrentModeLayoutPreference()
-    initViewportSizeUpdater()
-    initKeyboardListener()
-    resetAutoFlipTimer()
-    checkInstructions()
-    checkVersion()
-    isInited = true
+
+    // Listeners and one-time checks must only run once, otherwise navigating between
+    // artworks on a SPA (e.g. Pixiv) would stack duplicate global listeners.
+    if (!isInited) {
+        initViewportSizeUpdater()
+        initKeyboardListener()
+        resetAutoFlipTimer()
+        checkInstructions()
+        checkVersion()
+        isInited = true
+    }
 }
 
 watch(() => lang.value, () => {

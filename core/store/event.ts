@@ -27,14 +27,26 @@ function getEhunterElem() : HTMLDivElement|null {
 let resizeTimeoutId: number = 0
 function updateViewportSize() {
     let elem = getEhunterElem()
-    if (elem) {
+    if (elem && elem.offsetWidth > 0 && elem.offsetHeight > 0) {
         storeAction.setViewportWidth(elem.offsetWidth)
         storeAction.setViewportHeight(elem.offsetHeight)
+    } else {
+        // The eHunter reader is always a fullscreen fixed overlay, so the real viewport size
+        // is exactly window.innerWidth/innerHeight. Fall back to this when the container
+        // isn't measurable yet (e.g. right after a page reload, before its CSS is applied or
+        // layout has settled) — otherwise viewportWidth/Height stay at 0 and the reader
+        // renders blank until a resize/zoom event forces a re-measure.
+        storeAction.setViewportWidth(window.innerWidth)
+        storeAction.setViewportHeight(window.innerHeight)
     }
 }
 
 export function initViewportSizeUpdater() {
     updateViewportSize()
+    // Re-measure after layout/CSS has settled. This covers the fresh-reload race where the
+    // container's size cannot be read synchronously at init (it would otherwise be measured
+    // as 0, leaving the reader blank until the first resize/zoom).
+    requestAnimationFrame(() => requestAnimationFrame(updateViewportSize))
     window.addEventListener('resize', () => {
         window.clearTimeout(resizeTimeoutId)
         resizeTimeoutId = window.setTimeout(() => {

@@ -70,9 +70,21 @@ constructor(html) {
         return this.document!.getElementById('i3')!.children![0].getAttribute('href')!.split('/')[4];
     }
 
+    /**
+     * 主图地址。
+     *
+     * 原来是 `htmlText.match('id="img" x-src="(.*?)"')` 然后取 `RegExp.$1`，两个坑：
+     * 1. 属性顺序/空白一变就匹配不上（e-hentai 的标签偶发带别的属性）；
+     * 2. **匹配失败时 `RegExp.$1` 不会清空**，返回的是上一次匹配的残留地址——
+     *    表现就是"偶尔显示上一页/别的页的图"，而且刷新一次又好了。
+     * 改成 DOM 查询，取不到就返回空串（让上层判失败去换源，绝不返回别人的地址）。
+     */
     getImgUrl(): string {
-        this.htmlText.match('id="img" x-src="(.*?)"');
-        return RegExp.$1;
+        const node = this.html.querySelector('img#img') || this.html.querySelector('#img')
+        if (!node) {
+            return '';
+        }
+        return node.getAttribute('x-src') || node.getAttribute('src') || '';
     }
 
     getOriginalImgUrl(): string {
@@ -80,8 +92,10 @@ constructor(html) {
         return items[items.length - 1].children[1]!.getAttribute('href')!
     }
 
+    /** 同上：不能依赖 `RegExp.$1` 的残留值，匹配不到就返回空串 */
     getSourceId(): string {
-        this.html!.querySelector('#loadfail')!.attributes['onclick'].value.match(/nl\('(.*?)'\)/g);
-        return RegExp.$1;
+        const node = this.html!.querySelector('#loadfail')
+        const matched = (node?.getAttribute('onclick') || '').match(/nl\('(.*?)'\)/)
+        return matched ? matched[1] : ''
     }
 }

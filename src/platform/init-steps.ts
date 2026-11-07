@@ -19,6 +19,13 @@ export const NH_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
   { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 4 }
 ]
 
+export const PIXIV_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
+  { id: 'parseImagePageMetadata', label: 'Parse artwork metadata', order: 1 },
+  { id: 'fetchIntroPage', label: 'Fetch artwork data', order: 2 },
+  { id: 'extractTitle', label: 'Extract title', order: 3 },
+  { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 4 }
+]
+
 export function createStepMap(
   stepDefinitions: InitializationStepDefinition[]
 ): Record<string, InitializationStepDefinition> {

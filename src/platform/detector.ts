@@ -16,6 +16,7 @@ import { isTestEnvironmentHost } from '../../core/utils/runtimeEnv'
  * URL Patterns:
  * - EH: e-hentai.org/s/* or exhentai.org/s/* (reader page)
  * - NH: nhentai.net/g/[id]/[page]/ (reader page)
+ * - PX: www.pixiv.net/artworks/[id] (artwork page, also /en/artworks/[id])
  * - Test: localhost or IP addresses (127.0.0.1, 192.168.x.x, etc.)
  */
 export function detectPlatform(): PlatformDetectionResult {
@@ -42,6 +43,19 @@ export function detectPlatform(): PlatformDetectionResult {
   if (hostname === 'nhentai.net' && isNhReaderPage) {
     return {
       platform: Platform.NH,
+      host,
+      pathname,
+      isAlbumPage: true
+    }
+  }
+
+  const isPixivHost = hostname === 'www.pixiv.net' || hostname === 'pixiv.net'
+  const isPixivArtworkPage = /^\/(?:en\/)?artworks\/\d+/.test(pathname)
+
+  // Pixiv platform: artwork page only
+  if (isPixivHost && isPixivArtworkPage) {
+    return {
+      platform: Platform.PX,
       host,
       pathname,
       isAlbumPage: true

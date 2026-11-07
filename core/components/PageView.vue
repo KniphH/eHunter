@@ -3,6 +3,7 @@
     ref="pageViewRef"
     class="page-view"
     @click="onClickBg"
+    @contextmenu="onContextMenu"
     @mousemove="onMouseMove"
     @mouseleave="onMouseLeave"
     @touchstart="onTouchStart"
@@ -51,9 +52,9 @@
         <img
             ref="imgRef"
             class="album-item"
-            v-if="active && imgPageInfo && imgPageInfo.src"
-            :src="imgPageInfo.src"
-            @load="loaded()"
+            v-if="active && imgPageInfo && (imgPageInfo.displaySrc || imgPageInfo.src)"
+            :src="imgPageInfo.displaySrc || imgPageInfo.src"
+            @load="loaded($event)"
             @error="failLoad($event)">
     </div>
 
@@ -121,6 +122,13 @@
                         @click="changeMagnifierAreaSize(-1)">
                         <span>{{ i18n.decreaseMagnifierArea }}</span>
                     </button>
+
+                    <button
+                        type="button"
+                        class="item"
+                        @click="openStatsFromMenu">
+                        <span>{{ i18n.statsMenuEntry }}</span>
+                    </button>
                 </div>
             </Popover>
         </div>
@@ -151,6 +159,7 @@ import { usePageMenu } from './composables/usePageMenu'
 import { useMagnifier } from './composables/useMagnifier'
 import { usePageImageLoader, ImgLoadStatus } from './composables/usePageImageLoader'
 import { useTouchLongPress } from './composables/useTouchLongPress'
+import { openStats } from '../service/StatsService'
 
 type MagnifierSessionPreference = {
     enabled: boolean,
@@ -247,6 +256,7 @@ const showMagnifierZoomActions = computed(() => isDesktopPointer.value && magnif
 const {
     curLoadStatus,
     loadingInfo,
+    isSessionRunning,
     loadImgSrc,
     getNewImgSrc,
     failLoad,
@@ -256,6 +266,8 @@ const {
     albumService,
     imgPageInfo,
     warmMagnifierSource,
+    isActive: () => props.active,
+    getImgElement: () => imgRef.value,
 })
 
 const {
@@ -270,23 +282,60 @@ const {
     onLongPress: (x, y) => openMenuAt(x, y),
 })
 
-onMounted(() => {
-    if (props.active && !imgPageInfo.value.src) {
-        void loadImgSrc(ImgSrcMode.Default)
-    } else if (imgPageInfo.value.src) {
-        void warmMagnifierSource(imgPageInfo.value.src)
+/**
+ * 自动重开的次数上限。`active` 是跟着视口算的，滚动一下就会触发一次
+ * `ensureLoadedWhenVisible`，不设上限就等于回到「重试几百次」。
+ */
+const AUTO_RESTART_LIMIT = 2
+let autoRestartCount = 0
+
+/**
+ * 页面变可见时要保证它最终能显示出图。
+ *
+ * 判断依据**不能**只看「有没有地址」「上次是不是 Error」：
+ * `active` 是跟随视口的，滚动时 `<img>` 会被 `v-if` 摘掉，一次加载正好卡在这个空档里时，
+ * 状态会停在 `Loading` —— 既不是 Error 也不是 Loaded，于是旧的判断什么也不做，
+ * 页面就永久停在「加载中」。这正是「重试还是会卡住」的成因。
+ *
+ * 所以真正的依据是：**这一页此刻还有没有会话在跑**。
+ * 没会话且没 Loaded → 重新拉一轮（不管上次停在 Error 还是 Loading）。
+ */
+function ensureLoadedWhenVisible() {
+    if (!props.active) {
+        return
     }
+    if (curLoadStatus.value === ImgLoadStatus.Loaded) {
+        autoRestartCount = 0
+        const src = imgPageInfo.value.displaySrc || imgPageInfo.value.src
+        if (src) {
+            void warmMagnifierSource(src)
+        }
+        return
+    }
+    // 还有会话在跑，别插一脚
+    if (isSessionRunning.value) {
+        return
+    }
+    if (autoRestartCount >= AUTO_RESTART_LIMIT) {
+        // 自动重开已经用完了，剩下的交给用户点「刷新」，避免滚动一下就跑一整轮
+        return
+    }
+    autoRestartCount++
+    void loadImgSrc(ImgSrcMode.Default)
+}
+
+onMounted(() => {
+    ensureLoadedWhenVisible()
     setEnabledFromSession(magnifierSessionState.enabled)
 })
 
-watch(() => props.active, (newVal) => {
-    if (newVal && !imgPageInfo.value.src) {
-        void loadImgSrc(ImgSrcMode.Default)
-        return
+watch(() => props.active, (now) => {
+    // 每次重新可见都重新给两次机会：会话在不可见时会被暂停，
+    // 不重置的话滚一次就把额度用完了
+    if (now) {
+        autoRestartCount = 0
     }
-    if (newVal && imgPageInfo.value.src) {
-        void warmMagnifierSource(imgPageInfo.value.src)
-    }
+    ensureLoadedWhenVisible()
 })
 
 watch(() => props.index, () => {
@@ -346,6 +395,26 @@ function loadOriginalFromMenu() {
     }
     void getNewImgSrc(ImgSrcMode.Origin)
     closeMenu()
+}
+
+/**
+ * 右键弹状态浮层。
+ *
+ * 阅读器区域里左键已经被菜单占掉了，原生的「图片另存为」在这里本来也没多大用
+ * （图片多半是 blob 地址），所以右键拿来当 mpv 的 Shift+I 更划算。
+ */
+function onContextMenu(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (menuOpen.value) {
+        closeMenu()
+    }
+    openStats()
+}
+
+function openStatsFromMenu() {
+    closeMenu()
+    openStats()
 }
 
 function onClickBg(e: MouseEvent) {
