@@ -1,6 +1,6 @@
 # eHunter Enhanced
 
-基于 [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) 的增强分支（起点 `master@43a0a13`），保留原有的卷轴式 / 书本式阅读，新增**像素超分**、**详细状态浮层**、**pixiv 平台**等能力。当前版本 **v1.0.0**。
+基于 [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) 的增强分支（起点 `master@43a0a13`），保留原有的卷轴式 / 书本式阅读，新增**像素超分**、**详细状态浮层**、**pixiv 平台**等能力。当前版本 **v1.1.0**。
 
 原作者 Alex Chen，Copyright (c) 2017 Alex，MIT 许可（见 [LICENSE](LICENSE)）。本分支使用独立的 `@name` / `@namespace`，**可与原版同时安装**，互不覆盖。
 
