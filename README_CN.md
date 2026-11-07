@@ -133,6 +133,10 @@ npm run build-prod    # → dist/ehunter.iife.js
 
 产物是带油猴头的 IIFE。版本号只写在 `package.json`，构建时注入 `__EHUNTER_VERSION__` 与 `@version`，不要手改产物。
 
+## 发布
+
+推送 `v<版本>` 标签会触发 `.github/workflows/release.yml`：校验标签与 `package.json` 版本一致 → `npm ci` → `build-prod` → `node --check` → 自动创建 Release 并附上 `ehunter-enhanced.user.js`。因此发版顺序是**先改 `package.json` 版本并提交，再打同名标签推送**；两者不一致会直接失败，不会产出错版产物。说明文字由 GitHub 按提交记录生成，需要手写时可在 Release 页面编辑。
+
 本分支新增或重点修改的文件：
 
 ```

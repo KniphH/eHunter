@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify tag matches package version
+        run: |
+          node -e 'if (process.env.GITHUB_REF_NAME !== "v" + require("./package.json").version) throw new Error("Tag and package versions must match")'
+      - name: Build userscript
+        run: |
+          npm run build-prod
+          cp dist/ehunter.iife.js dist/ehunter-enhanced.user.js
+          node --check dist/ehunter-enhanced.user.js
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/ehunter-enhanced.user.js \
+            --verify-tag --latest --generate-notes \
+            --title "eHunter Enhanced $GITHUB_REF_NAME"

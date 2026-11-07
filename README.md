@@ -133,6 +133,10 @@ npm run build-prod    # → dist/ehunter.iife.js
 
 The output is an IIFE with the userscript banner. The version lives only in `package.json` and is injected into `__EHUNTER_VERSION__` and `@version` at build time — do not edit the built file.
 
+## Releasing
+
+Pushing a `v<version>` tag triggers `.github/workflows/release.yml`: verify the tag matches `package.json` → `npm ci` → `build-prod` → `node --check` → create the Release with `ehunter-enhanced.user.js` attached. So release in this order: **bump `package.json` and commit first, then push the matching tag**. A mismatch fails the workflow instead of publishing a wrongly versioned build. Release notes are generated from the commit history and can be edited afterwards.
+
 Files added or substantially changed in this fork:
 
 ```
