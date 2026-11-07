@@ -1,72 +1,128 @@
-[中文版](https://github.com/KniphH/eHunter/blob/ehunter-enhanced/README_CN.md)
+# eHunter Enhanced
 
-# eHunter
-Provide scroll mode and book mode for a better reading experience.
+[中文版](README_CN.md)
 
-> **eHunter Enhanced v1.0.0** (branch `ehunter-enhanced`) is an MIT-licensed enhanced fork of [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter). Original author Alex Chen, Copyright (c) 2017 Alex; see [LICENSE](LICENSE). It uses its own 1.0.0 version line and a distinct userscript identity, so it can be installed alongside the original.
->
-> Added on top of upstream master (`43a0a13`): a WebGL2 Anime4K super-resolution pipeline with custom `.glsl` pass stacking, a render timing stats overlay, selectable output encoding (PNG / WebP / JPEG), pixiv platform support, and an improved image source retry policy.
->
-> Install from this repository's Releases (`ehunter-enhanced.user.js`). Please file issues [here](https://github.com/KniphH/eHunter/issues), not upstream. The original documentation is kept below.
+An enhanced fork of [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) (based on `master@43a0a13`). Keeps the original scroll / book reader and adds **WebGL2 super-resolution**, a **detailed runtime stats overlay**, **pixiv support**, and more. Current version **v1.0.0**.
 
-# Preview
-<img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_4.png" style="width: 800px; display: block; padding: 10px;"/>
-<img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_5_1.png" style="width: 800px; display: block; padding: 10px;"/>
-<img src="https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/github_preview_3.jpg" style="width: 800px; display: block; padding: 10px;"/>
-
-# Use on iPhone and iPad
-eHunter can run on iPhone and iPad. See the guides below:
-
-CN: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_cn.md)
-EN: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_en.md)
-JP: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_jp.md)
-
-## Implementation Overview
-eHunter creates a new node on the original page and mounts Vue to that node.
-Content crawling/parsing is handled by fetch-based logic.
-The architecture isolates platform-specific behavior from reader UI logic, making migration to other comic platforms easier.
+Original author Alex Chen, Copyright (c) 2017 Alex, MIT licensed (see [LICENSE](LICENSE)). This fork uses its own `@name` / `@namespace`, so it **can be installed alongside the original** without overwriting it.
 
 ## Install
-Tampermonkey/userscript: [openuserjs](https://openuserjs.org/scripts/alexchen/eHunter)
 
-## Run
-1. Run `npm install`, then `npm run dev` for development mode.
-2. Run `npm run build-prod` to generate the userscript build.
+Download `ehunter-enhanced.user.js` from [Releases](https://github.com/KniphH/eHunter/releases) and install it in Tampermonkey / Violentmonkey. Supported sites: e-hentai, exhentai, nhentai, pixiv.
 
-## Project Architecture
-The current project is based on `Vite + Vue 3 + TypeScript`, with two main goals:
-1. Inject a reader UI into target site pages.
-2. Keep platform parsing logic and reader rendering logic layered for maintainability and extension.
+The script requires `GM_xmlhttpRequest` (image fallback) and `GM_download` (bundle download).
 
-Main directory responsibilities:
+## Added features
+
+| Feature | Where | What it does |
+| --- | --- | --- |
+| Super-resolution | More settings → Super resolution | Upscales the current page in WebGL2 with shaders you choose |
+| Shader files | More settings → Super resolution shaders | Load, reorder and clear `.glsl` files; inspect the pass chain |
+| Output encoding | More settings → Output encoding | PNG / WebP / JPEG — trade latency against memory |
+| Detailed stats | Page menu → "Detailed stats", or right-click in the reader | Five-section runtime overlay with render breakdown and network detail |
+| pixiv platform | Automatic on artwork pages | Multi-page illustrations, R-18 and follower-only works |
+| Image fallback channel | Automatic | GM request with Referer and magic-byte validation when `<img>` fails |
+| Retry policy | Automatic | Round-robin retry; original-source mode never auto-retried |
+
+---
+
+## 1. Super-resolution
+
+### Setup
+
+1. Enable **More settings → Super resolution**. On first enable with no shaders loaded, the shader picker opens automatically.
+2. Click **Super resolution shaders → Choose files…** and pick one or more `.glsl` / `.hook` / `.txt` files. **No algorithm is bundled**: shader text is stored locally (`GM_getValue`/`GM_setValue` when the userscript manager provides them, otherwise page `localStorage`) and restored on next launch.
+3. Use the ▲▼ buttons to reorder. Files run **top to bottom** — the first ("First") runs first, the last ("Last") finishes. The dialog shows per-file pass counts, total passes, the full chain, and how many pages are cached.
+
+### Supported shader form
+
+| | Scope |
+| --- | --- |
+| Supported | `//!HOOK MAIN` + `//!COMPONENTS 4`: `Restore_CNN_*`, `Upscale_CNN_x2_*`, `Upscale_Denoise_CNN_x2_*`, `Restore_GAN_*` |
+| Not supported | `//!COMPONENTS 1/2/3` luma-only filters (Darken / Thin / Deblur / AIO). Loading fails **loudly** rather than producing a wrong image |
+
+This is a WebGL2 port of libplacebo hook semantics, not mpv shaders passed through unchanged: `//!WIDTH` / `//!HEIGHT` are evaluated as postfix expressions using `NAME.w` / `NAME.h`; `//!BIND HOOKED` is an alias for MAIN; `//!SAVE` textures flow between passes; each bound texture gets `NAME_tex`, `NAME_texOff`, `NAME_pos`, `NAME_size` and `NAME_pt` macros. Chromium ignores `UNPACK_FLIP_Y_WEBGL` for `ImageBitmap`, so the runner flips Y itself.
+
+### How it runs
+
+- Decode source into an `ImageBitmap` → render pass by pass into textures → present the final pass to a canvas → `toBlob` → replace `<img src>` with a blob URL.
+- **LRU cache of 8 pages**; the same URL is rendered once (in-flight calls are coalesced), prefetch is supported, and going back hits the cache.
+- Any failure (shader compile, size expression, `MAX_TEXTURE_SIZE`, encoding) marks the URL as failed and **falls back to the original address** — no broken images. A `blob:` URL is not mistaken for an already-upscaled result.
+- Changing the encoding or the shader set clears the cache and revokes blob URLs, so stale results cannot linger.
+
+### Output encoding
+
+Measured on one real 2560×3440 colour page (RTX 3050 Laptop / ANGLE D3D11):
+
+| Encoding | Size | Encode | Decode | Trade-off |
+| --- | --- | --- | --- | --- |
+| PNG (default) | 11.27 MB | 355 ms | 114 ms | Lossless, ~2× faster to encode than WebP, but heaviest: ~90 MB for 8 cached pages |
+| WebP 0.9 | 0.55 MB | 677 ms | 70 ms | ~1/20 the size and fastest to decode, at ~0.3 s extra encoding per page |
+| JPEG 0.9 | 0.93 MB | 75 ms | 32 ms | Fastest and lightest, but lossy — fine lines and small text pick up artifacts |
+
+No option dominates, so it is user-selectable. There is deliberately no quality slider: each option fixes one measured quality value rather than adding a knob that looks adjustable but makes no visible difference.
+
+---
+
+## 2. Detailed stats overlay
+
+### Opening and controls
+
+- **Open**: page menu → "Detailed stats", or **right-click** inside the reader.
+- **Close**: `Esc` or the × button.
+- Drag the title bar to move the panel. "Copy" exports the panel as plain text for bug reports; "Reset" clears the counters.
+
+### Five sections
+
+| Section | Fields |
+| --- | --- |
+| Current page | Index, status, source mode, attempts, session duration, fetch time, original size / bytes, upscaled size / bytes and ratio, displayed image origin (URL / thumbnail / fallback blob / upscaled result), image host, last error |
+| Album progress | Loaded / total with percentage, loading, failed, not started, average load time, total original bytes, total upscaled bytes (with page count) |
+| Image network | Total requests and bytes, failures, average speed; 12-bar speed chart plus the last 5 samples (`IMG` / `GM` / `SR` channel, host, duration, speed, failure reason) |
+| Super-resolution | Enabled state, shader file count and total passes, output encoding, full execution chain, cache size and hit rate / queue depth, last render input→output dimensions and byte delta, **render breakdown: decode / GPU / encode / total** |
+| Environment | Version and platform, viewport and DPR, FPS, JS heap and DOM node count |
+
+The four breakdown timings add up to the total, so you can see whether the bottleneck is decoding, GPU work or encoding instead of guessing from one number.
+
+### Sampling rules
+
+- **Ring buffers** (48 network requests / 12 renders), no logs, nothing persisted. Sampling continues while the overlay is closed, so opening it shows what just happened.
+- The FPS / memory / node probe runs **only while the overlay is open**; closing it stops the rAF loop and timer.
+- Sizes and byte counts come in original / upscaled pairs. Anything unavailable shows `—` rather than a guess.
+- Cross-origin images without `Timing-Allow-Origin` always report `transferSize` / `decodedBodySize` as 0 from Resource Timing, so original bytes come from the **blob the script fetched itself** (`blob.size`), which is real.
+- "Loading" counts sessions actually running now, not a possibly stale Loading flag; "Not started" includes pages never scrolled to and is not a failure count.
+
+---
+
+## 3. Other changes
+
+- **pixiv platform**: detects `/artworks/:id` (including `/en/`), then reads metadata and per-page URLs from same-origin `/ajax/illust/:id` and `/ajax/illust/:id/pages`. Requests carry the current session cookies automatically, so R-18 and follower-only works are readable. Ugoira (animated works) is not supported.
+- **Image fallback channel**: when `<img>` fails, a `GM_xmlhttpRequest` retry adds the required `Referer` (`i.pximg.net` returns 403 without it) and exposes the real HTTP status. Returned bytes are validated against PNG / JPEG / GIF / WebP / AVIF magic bytes: a CDN serving an HTML error page with HTTP 200, or a manager returning text instead of binary, is treated as a failure instead of being wrapped in a Blob and shown as a broken image.
+- **Retry policy**: a session builds one complete plan and consumes "default source → alternate source" in rounds, instead of rebuilding a queue on every failure (the old behaviour could retry forever on a permanently unavailable image). **Original-source mode is never in the automatic loop** — fetching an original on e-hentai costs GP, so it appears only once, at the front, when the user explicitly picks it. Bulk downloads use a separate forward-only plan, also excluding originals.
+
+---
+
+## Build
+
+```bash
+npm install
+npm run build-prod    # → dist/ehunter.iife.js
+```
+
+The output is an IIFE with the userscript banner. The version lives only in `package.json` and is injected into `__EHUNTER_VERSION__` and `@version` at build time — do not edit the built file.
+
+Files added or substantially changed in this fork:
 
 ```
-|-eHunter
-  |-src
-  |  |-main.ts               // Entry: initialize and mount app (currently test mounting by default)
-  |  |-config.ts             // Runtime config
-  |  |-platform/             // Platform layer (site detection, initialization, service factory)
-  |     |-detector.ts        // Host/environment detection
-  |     |-initializer.ts     // Platform initialization flow
-  |     |-factory.ts         // Platform service creation
-  |     |-eh/                // EH/EXH implementation
-  |     |-nh/                // NH implementation
-  |     |-base/              // Cross-platform base capabilities (request, queue, retry)
-  |
-  |-core
-  |  |-App.vue               // Reader root component
-  |  |-components/           // View layer: book mode, scroll mode, thumbnails, top bar, dialogs
-  |  |-service/              // Business services (album data, download, retry policy)
-  |  |-store/                // State management (app state, event bus, i18n, layout preference)
-  |  |-model/                // Domain models (layout, book spread, thumb expand)
-  |  |-utils/                // Utilities
-  |  |-style/                // Global styles and theme variables
-  |
-  |-public/                  // Static assets
-  |-dist/                    // Build output
-  |-specs/                   // Feature/design specs
-  |-misc/                    // Docs and supporting materials
+core/service/SuperResolutionService.ts          WebGL2 runner, shader parser, LRU cache
+core/service/StatsService.ts                    runtime sampling, aggregation, probe
+core/service/ImageFetchService.ts               GM fallback and magic-byte validation
+core/service/imageRetryPolicy.ts                retry plan
+core/components/StatsOverlay.vue                detailed stats overlay
+core/components/dialog/SuperResShaderDialog.vue  shader file management
+src/platform/pixiv/                            pixiv platform
 ```
 
-Simplified call flow:
-`main.ts -> platform initialization (detect site + create platform services) -> core reader mount -> component rendering/interaction -> service/store coordinate data loading and state updates`.
+## License and attribution
+
+MIT. Original project: [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) by Alex Chen, Copyright (c) 2017 Alex; see [LICENSE](LICENSE). Fork changes are maintained by KniphH. Please file issues [in this repository](https://github.com/KniphH/eHunter/issues), not upstream.
