@@ -59,6 +59,15 @@ const MAX_ATTEMPTS_PER_SRC = 2
  * 不会误杀尺寸信息略微不准的正常页。
  */
 const MAX_ASPECT_DEVIATION = 3
+/**
+ * 一次会话失败后，隔多久自动再开一轮（秒），依次用完后彻底停下。
+ *
+ * 重试计划绕两圈就停是为了不放大请求量；但网络抖动、代理线路被掐这类失败
+ * 往往几十秒后自己就好了，停住不动只能让用户手动点刷新。
+ * 这里按退避节奏再给几次机会，倒计时会显示在失败提示里——是显式的，不是偷偷重试。
+ * 用户手动点「刷新 / 换源 / 原图」会立即重置这套节奏。
+ */
+const AUTO_RETRY_DELAYS = [10, 30, 90, 300]
 
 export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     const { index, albumService, imgPageInfo, warmMagnifierSource, isActive, getImgElement } = options
@@ -98,15 +107,23 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     let pausedByVisibility = false
     /** 兜底通道自己产出的 blob 地址，只有这些能由我们 revoke（超分的 blob 归超分缓存管） */
     const ownBlobUrls = new Set<string>()
+    /** 自动重试倒计时（秒）；0 表示当前没有安排 */
+    const autoRetrySec = ref(0)
+    let autoRetryAt = 0
+    let autoRetryTimer: number | null = null
+    let autoRetryCount = 0
 
     const loadingInfo = computed(() => {
         const reloadInfo = reloadTimes.value ? `[${i18n.value.reload}-${reloadTimes.value}] ` : ''
+        const retryInfo = autoRetrySec.value > 0
+            ? ` · ${i18n.value.autoRetryIn.replace('{sec}', String(autoRetrySec.value))}`
+            : ''
         if (message.value) {
-            return reloadInfo + message.value
+            return reloadInfo + message.value + retryInfo
         }
         switch (curLoadStatus.value) {
             case ImgLoadStatus.Error:
-                return reloadInfo + i18n.value.loadingImgFailed
+                return reloadInfo + i18n.value.loadingImgFailed + retryInfo
             case ImgLoadStatus.Loaded:
                 return reloadInfo + i18n.value.imgLoaded
             case ImgLoadStatus.Waiting:
@@ -124,6 +141,48 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             window.clearInterval(elapsedTimer)
             elapsedTimer = null
         }
+    }
+
+    function clearAutoRetryTimer() {
+        if (autoRetryTimer !== null) {
+            window.clearInterval(autoRetryTimer)
+            autoRetryTimer = null
+        }
+        autoRetryAt = 0
+        autoRetrySec.value = 0
+    }
+
+    /** 用户手动重试 / 成功加载后，退避次数从头算 */
+    function resetAutoRetry() {
+        clearAutoRetryTimer()
+        autoRetryCount = 0
+    }
+
+    /**
+     * 失败后安排下一次自动重试，倒计时写在失败提示里。
+     *
+     * 只在页面可见时安排：不可见时 `<img>` 会被 v-if 摘掉，重开也等不到事件，
+     * 那种情况交给页面层的可见性重开逻辑。
+     */
+    function scheduleAutoRetry() {
+        if (!isActive() || autoRetryCount >= AUTO_RETRY_DELAYS.length) {
+            return
+        }
+        clearAutoRetryTimer()
+        const delay = AUTO_RETRY_DELAYS[autoRetryCount]
+        autoRetryCount++
+        autoRetryAt = Date.now() + delay * 1000
+        autoRetrySec.value = delay
+        autoRetryTimer = window.setInterval(() => {
+            const left = Math.ceil((autoRetryAt - Date.now()) / 1000)
+            if (left > 0) {
+                autoRetrySec.value = left
+                return
+            }
+            clearAutoRetryTimer()
+            Logger.logText('LOADING', `auto retry ${autoRetryCount}/${AUTO_RETRY_DELAYS.length}`)
+            void loadImgSrc(ImgSrcMode.Default)
+        }, 500)
     }
 
     /** 每次开始一次尝试就重置计时，让提示里显示的是「这次」等了多久 */
@@ -575,6 +634,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                     : (message.value || i18n.value.loadingImgFailed)
                 sessionFinishedAt = Date.now()
                 Logger.logText('LOADING', `retry failed after ${reloadTimes.value} attempts, reason=${failReason || 'unknown'}`)
+                scheduleAutoRetry()
                 publishPageState()
                 return
             }
@@ -616,6 +676,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                 curLoadStatus.value = ImgLoadStatus.Loaded
                 autoRetryQueue.value = []
                 isAutoRetryExhausted.value = false
+                resetAutoRetry()
                 message.value = ''
                 sessionFinishedAt = Date.now()
                 afterImageLoaded()
@@ -640,6 +701,9 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         settlePending(false)
         failReason = ''
         pausedByVisibility = false
+        // 重开一轮就撤掉上一次的自动重试倒计时；autoRetryCount 不在这里归零，
+        // 否则自动重试会变成无限循环。归零只发生在用户手动操作或加载成功时。
+        clearAutoRetryTimer()
         autoRetryQueue.value = buildImageRetryPlan({
             autoRetryByOtherSource: store.autoRetryByOtherSource,
             supportChangeSource: albumService.isSupportImgChangeSource(),
@@ -682,8 +746,9 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         await startSession(mode)
     }
 
-    /** 用户手动重试 / 换模式：立刻按用户选的模式重开一次会话 */
+    /** 用户手动重试 / 换模式：立刻按用户选的模式重开一次会话，退避节奏也从头算 */
     async function getNewImgSrc(mode: ImgSrcMode) {
+        resetAutoRetry()
         await startSession(mode)
     }
 
@@ -729,6 +794,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         curLoadStatus.value = ImgLoadStatus.Loaded
         autoRetryQueue.value = []
         isAutoRetryExhausted.value = false
+        resetAutoRetry()
         sessionFinishedAt = Date.now()
         afterImageLoaded()
         publishPageState()
@@ -798,6 +864,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         sessionId++
         settlePending(false)
         clearElapsedTimer()
+        clearAutoRetryTimer()
         for (const url of ownBlobUrls) {
             URL.revokeObjectURL(url)
         }
@@ -812,5 +879,6 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         getNewImgSrc,
         failLoad,
         loaded,
+        resetAutoRetry,
     }
 }

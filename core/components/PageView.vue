@@ -261,6 +261,7 @@ const {
     getNewImgSrc,
     failLoad,
     loaded,
+    resetAutoRetry,
 } = usePageImageLoader({
     index: props.index,
     albumService,
@@ -334,6 +335,8 @@ watch(() => props.active, (now) => {
     // 不重置的话滚一次就把额度用完了
     if (now) {
         autoRestartCount = 0
+        // 退避重试的次数也重新给：用户滚回这一页，通常意味着「现在真的想看它」
+        resetAutoRetry()
     }
     ensureLoadedWhenVisible()
 })

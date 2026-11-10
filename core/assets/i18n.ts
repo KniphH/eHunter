@@ -239,6 +239,11 @@ export default <any>{
         en: 'Loading failed, please refresh',
         jp: '読み込みに失敗しました。更新してください'
     },
+    autoRetryIn: {
+        cn: '{sec} 秒后自动重试',
+        en: 'retrying in {sec}s',
+        jp: '{sec} 秒後に自動再試行'
+    },
     noOriginalImg: {
         cn: '无原图, 请刷新',
         en: 'No original Image, please refresh',
