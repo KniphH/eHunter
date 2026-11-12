@@ -19,6 +19,7 @@ import {
 } from '../model/thumbExpand'
 import { readLayoutPreference, writeLayoutPreference } from './layoutPreference'
 import { superResolutionService, setOutputEncode, type SuperResEncode, type SuperResShaderFile } from '../service/SuperResolutionService'
+import { isInSuperResWindow, superResPriority } from '../service/renderQueue'
 import { GalleryDownloadService } from '../service/GalleryDownloadService'
 import type { DownloadStatusEvent, DownloadTaskPhase, DownloadSeverity } from '../service/GalleryDownloadService'
 
@@ -1267,12 +1268,18 @@ export const settingConf = {
  * 所以这里主动补一次，否则用户开完开关会以为没生效。
  */
 function upgradeAllLoadedPages(): void {
+    const center = store.curViewIndex
     store.imgPageInfos.forEach((info, index) => {
         const originalSrc = info.src
         if (!originalSrc || info.displaySrc) {
             return
         }
-        void superResolutionService.resolve(originalSrc, Math.abs(index - store.curViewIndex) * 10).then((upgraded) => {
+        // 只补当前阅读方向上的页：开开关时把前面的页也算一遍纯属浪费，
+        // 用户已经看过了，真翻回去它们会重新入队。
+        if (!isInSuperResWindow(index, center)) {
+            return
+        }
+        void superResolutionService.resolve(originalSrc, superResPriority(index, center)).then((upgraded) => {
             if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
                 return
             }
@@ -1294,10 +1301,20 @@ function prioritizeSuperResAround(center: number): void {
     if (!store.superResEnabled) {
         return
     }
+    const indexByUrl = new Map<string, number>()
     store.imgPageInfos.forEach((info, index) => {
         if (info.src) {
-            superResolutionService.prioritize(info.src, Math.abs(index - center) * 10)
+            indexByUrl.set(info.src, index)
         }
+    })
+    // 先裁掉窗口外的排队页：已经翻过去了，留在队里只会拖慢阅读方向
+    superResolutionService.retainQueued((url) => {
+        const index = indexByUrl.get(url)
+        return index === undefined || isInSuperResWindow(index, center)
+    })
+    // 再按「后面的页优先、前面只留一页」重排
+    indexByUrl.forEach((index, url) => {
+        superResolutionService.prioritize(url, superResPriority(index, center))
     })
 }
 
@@ -1570,7 +1587,11 @@ export const storeAction = {
             if (!originalSrc) {
                 return
             }
-            void superResolutionService.resolve(originalSrc, Math.abs(index - store.curViewIndex) * 10).then((upgraded) => {
+            // 同理：只重跑当前阅读方向上的页，其余页翻到时再算
+            if (!isInSuperResWindow(index, store.curViewIndex)) {
+                return
+            }
+            void superResolutionService.resolve(originalSrc, superResPriority(index, store.curViewIndex)).then((upgraded) => {
                 if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
                     return
                 }

@@ -5,6 +5,7 @@ import { i18n } from '../../store/i18n'
 import { store, storeAction } from '../../store/app'
 import Logger from '../../utils/logger'
 import { buildImageRetryPlan } from '../../service/imageRetryPolicy'
+import { isInSuperResWindow, superResPriority } from '../../service/renderQueue'
 import { fetchImageObjectUrl } from '../../service/ImageFetchService'
 import { superResolutionService } from '../../service/SuperResolutionService'
 import { hostOf, reportNet, reportPage, type PageSnapshot } from '../../service/StatsService'
@@ -808,11 +809,11 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     }
 
     /**
-     * 超分排队优先级：离当前视口越远越晚算。
-     * 0 = 当前页，10 = 相邻页，20 = 隔一页……服务端按这个值取最小。
+     * 超分排队优先级：按阅读方向排，后面的页先算。
+     * 当前页 0、后面第 k 页 k×10、前面第 1 页 100、窗口外不排队（见 renderQueue）。
      */
     function superResPriorityOf(pageIndex: number): number {
-        return Math.abs(pageIndex - store.curViewIndex) * 10
+        return superResPriority(pageIndex, store.curViewIndex)
     }
 
     /**
@@ -836,6 +837,10 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             // displaySrc 生效后会再次触发 load，这里直接结束，避免自激
             return
         }
+        // 不在阅读方向上的页不排队：用户已经翻过去了，真翻回来时会由页面可见性补一次
+        if (!isInSuperResWindow(index, store.curViewIndex)) {
+            return
+        }
         const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index))
         // 这段时间里可能已经换页/换源/关掉超分，过期结果直接丢
         if (imgPageInfo.value.src !== originalSrc || !store.superResEnabled) {
@@ -848,11 +853,14 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         prefetchNeighborPages(originalSrc)
     }
 
-    /** 当前页算完后就近预取前后各一页，翻过去时直接命中缓存 */
+    /** 当前页算完后预取前后各一页（后一页优先），翻过去时直接命中缓存 */
     function prefetchNeighborPages(currentSrc: string) {
         for (const offset of [-1, 1]) {
             const neighbor = store.imgPageInfos[index + offset]
             if (!neighbor || !neighbor.src || neighbor.src === currentSrc || neighbor.displaySrc) {
+                continue
+            }
+            if (!isInSuperResWindow(index + offset, store.curViewIndex)) {
                 continue
             }
             superResolutionService.prefetch(neighbor.src, superResPriorityOf(index + offset))
@@ -880,5 +888,6 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         failLoad,
         loaded,
         resetAutoRetry,
+        upgradeBySuperResolution,
     }
 }

@@ -66,6 +66,8 @@ interface TextureSlot {
 
 const STORAGE_KEY = 'ehunter_superres_shaders_v1'
 const RESULT_CACHE_LIMIT = 8
+/** 排队任务被窗口裁掉时的结束原因：不是失败，不能记进 failed */
+const QUEUE_DROPPED = 'QUEUE_DROPPED'
 const SHADER_SHARED_NAMES = new Set(['MAIN', 'HOOKED'])
 
 // ---------------------------------------------------------------- shader 解析
@@ -801,6 +803,10 @@ class SuperResolutionService {
                 return result.url
             })
             .catch((error) => {
+                if (error instanceof Error && error.message === QUEUE_DROPPED) {
+                    // 被排队窗口裁掉：不是失败，翻回附近时会重新入队
+                    return sourceUrl
+                }
                 this.failed.add(sourceUrl)
                 Logger.logText('SUPERRES', `failed: ${sourceUrl} ${String(error && (error as Error).message || error)}`)
                 return sourceUrl
@@ -831,6 +837,30 @@ class SuperResolutionService {
         const job = sourceUrl ? this.queuedByUrl.get(sourceUrl) : undefined
         if (job) {
             job.priority = priority
+        }
+    }
+
+    /**
+     * 只保留满足条件的排队任务，其余直接出队。
+     *
+     * 用于「翻页后裁掉阅读方向之外的页」：那些页已经翻过去了，留在队里只会占位置。
+     * 正在渲染的那一页不在队列里，裁不到它。
+     */
+    retainQueued(keep: (url: string) => boolean): void {
+        let dropped = 0
+        const kept: RenderJob[] = []
+        for (const job of this.queue) {
+            if (keep(job.url)) {
+                kept.push(job)
+                continue
+            }
+            this.queuedByUrl.delete(job.url)
+            job.cancel()
+            dropped++
+        }
+        if (dropped > 0) {
+            this.queue = kept
+            Logger.logText('SUPERRES', `dropped ${dropped} queued page(s) outside window`)
         }
     }
 
@@ -945,6 +975,7 @@ class SuperResolutionService {
                         reject(error)
                     }
                 },
+                cancel: () => reject(new Error(QUEUE_DROPPED)),
             }
             this.queue.push(entry)
             this.queuedByUrl.set(url, entry)

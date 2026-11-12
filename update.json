@@ -1,9 +1,9 @@
 {
     "cn": {
-        "title": "eHunter Enhanced v1.1.3",
-        "version": "1.1.3",
-        "text": "### v1.1.3\n- 超分缓存（LRU 8 页）淘汰时，同步把对应页的显示地址退回原图；翻回较远的页时不再先撞一次失效的 blob 再重试\n- 缓存清空（换编码 / 换算法文件）走同一条通知路径\n\n### v1.1.2\n- 图片加载失败后按 10 / 30 / 90 / 300 秒退避自动重试，失败提示里显示倒计时，不再停住等手动刷新\n- 手动点「刷新 / 换源 / 原图」或滚回该页会重置退避节奏\n\n### v1.1.1\n- 超分排队改为按「离当前页的距离」优先：当前页先算，预取页不再抢在前面\n- 翻页时会把已经排队的当前页就地提到队首（正在渲染的那一页无法中断）\n\n### v1.1.0\n- 新增 WNACG 平台支持（幻灯片页逐页地址解析、签名地址自动刷新）\n- 修复「原图」按钮在没有独立原图链接时的解析失败：改按 fullimg.php 语义定位，取不到时明确提示「没有原图」\n\n### v1.0.0\n- 新增基于 WebGL2 的 Anime4K 超分链路，支持自定义 .glsl pass 叠加\n- 新增渲染耗时状态浮层与跨域原图体积统计\n- 新增输出编码可选（PNG / WebP / JPEG）\n- 新增 pixiv 平台支持\n- 改进图片换源重试策略\n\n本项目是基于 hanFengSan/eHunter 的 MIT 许可增强分支，原作者 Alex Chen。",
-        "time": 1794463628769,
+        "title": "eHunter Enhanced v1.2.0",
+        "version": "1.2.0",
+        "text": "### v1.2.0\n- 超分排队改为按阅读方向：当前页 → 后面 3 页 → 前面 1 页；更早的页直接移出队列\n- 被移出的排队任务按「取消」处理，不记失败；翻回去时会重新入队\n\n### v1.1.3\n- 超分缓存（LRU 8 页）淘汰时，同步把对应页的显示地址退回原图；翻回较远的页时不再先撞一次失效的 blob 再重试\n- 缓存清空（换编码 / 换算法文件）走同一条通知路径\n\n### v1.1.2\n- 图片加载失败后按 10 / 30 / 90 / 300 秒退避自动重试，失败提示里显示倒计时，不再停住等手动刷新\n- 手动点「刷新 / 换源 / 原图」或滚回该页会重置退避节奏\n\n### v1.1.1\n- 超分排队改为按「离当前页的距离」优先：当前页先算，预取页不再抢在前面\n- 翻页时会把已经排队的当前页就地提到队首（正在渲染的那一页无法中断）\n\n### v1.1.0\n- 新增 WNACG 平台支持（幻灯片页逐页地址解析、签名地址自动刷新）\n- 修复「原图」按钮在没有独立原图链接时的解析失败：改按 fullimg.php 语义定位，取不到时明确提示「没有原图」\n\n### v1.0.0\n- 新增基于 WebGL2 的 Anime4K 超分链路，支持自定义 .glsl pass 叠加\n- 新增渲染耗时状态浮层与跨域原图体积统计\n- 新增输出编码可选（PNG / WebP / JPEG）\n- 新增 pixiv 平台支持\n- 改进图片换源重试策略\n\n本项目是基于 hanFengSan/eHunter 的 MIT 许可增强分支，原作者 Alex Chen。",
+        "time": 1794464246717,
         "duration": 432000000,
         "always": true,
         "operations": [
@@ -18,10 +18,10 @@
         ]
     },
     "en": {
-        "title": "eHunter Enhanced v1.1.3",
-        "version": "1.1.3",
-        "text": "### v1.1.3\n- When the super-resolution LRU cache (8 pages) evicts an entry, the page showing it now falls back to the original image immediately, instead of hitting a revoked blob and retrying first\n- Cache clears (encoding / shader changes) use the same notification path\n\n### v1.1.2\n- Failed images now retry automatically with 10 / 30 / 90 / 300 s backoff, with a countdown in the error line instead of waiting for a manual refresh\n- Manual refresh / source switch / original, or scrolling back to the page, resets the backoff\n\n### v1.1.1\n- Super-resolution queue now prioritizes pages by distance from the current page; the page you are reading runs first instead of waiting behind prefetched pages\n- Flipping pages re-prioritizes the queued page in place (the page already rendering cannot be interrupted)\n\n### v1.1.0\n- Added WNACG platform support (per-page URL parsing on slide pages, signed-URL refresh)\n- Fixed original-image lookup when no separate original link exists; the reader now reports \"no original image\" explicitly\n\n### v1.0.0\n- WebGL2 Anime4K super-resolution pipeline with custom .glsl pass stacking\n- Render timing stats overlay and cross-origin source size reporting\n- Selectable output encoding (PNG / WebP / JPEG)\n- pixiv platform support\n- Improved image source retry policy\n\nThis is an MIT-licensed enhanced fork of hanFengSan/eHunter by Alex Chen.",
-        "time": 1794463628769,
+        "title": "eHunter Enhanced v1.2.0",
+        "version": "1.2.0",
+        "text": "### v1.2.0\n- Super-resolution queue now follows the reading direction: current page → next 3 pages → previous page; earlier pages are dropped from the queue\n- Dropped jobs are cancelled rather than marked failed, and re-queue when you scroll back\n\n### v1.1.3\n- When the super-resolution LRU cache (8 pages) evicts an entry, the page showing it now falls back to the original image immediately, instead of hitting a revoked blob and retrying first\n- Cache clears (encoding / shader changes) use the same notification path\n\n### v1.1.2\n- Failed images now retry automatically with 10 / 30 / 90 / 300 s backoff, with a countdown in the error line instead of waiting for a manual refresh\n- Manual refresh / source switch / original, or scrolling back to the page, resets the backoff\n\n### v1.1.1\n- Super-resolution queue now prioritizes pages by distance from the current page; the page you are reading runs first instead of waiting behind prefetched pages\n- Flipping pages re-prioritizes the queued page in place (the page already rendering cannot be interrupted)\n\n### v1.1.0\n- Added WNACG platform support (per-page URL parsing on slide pages, signed-URL refresh)\n- Fixed original-image lookup when no separate original link exists; the reader now reports \"no original image\" explicitly\n\n### v1.0.0\n- WebGL2 Anime4K super-resolution pipeline with custom .glsl pass stacking\n- Render timing stats overlay and cross-origin source size reporting\n- Selectable output encoding (PNG / WebP / JPEG)\n- pixiv platform support\n- Improved image source retry policy\n\nThis is an MIT-licensed enhanced fork of hanFengSan/eHunter by Alex Chen.",
+        "time": 1794464246717,
         "duration": 432000000,
         "always": true,
         "operations": [
@@ -36,10 +36,10 @@
         ]
     },
     "jp": {
-        "title": "eHunter Enhanced v1.1.3",
-        "version": "1.1.3",
-        "text": "### v1.1.3\n- 超解像キャッシュ（LRU 8 ページ）の追い出し時に、その画像を表示中のページを元画像へ戻すよう修正。離れたページに戻った際、無効な blob に当たって再試行する問題を解消\n- キャッシュ全消去（出力形式 / シェーダー変更）も同じ通知経路を使用\n\n### v1.1.2\n- 画像の読み込み失敗後、10 / 30 / 90 / 300 秒の間隔で自動再試行し、失敗メッセージにカウントダウンを表示\n- 「更新 / ソース切替 / オリジナル」を手動で押すか、そのページに戻ると間隔をリセット\n\n### v1.1.1\n- 超解像の待ち行列を「現在のページからの距離」順に変更。表示中のページが先に処理され、先読みページに追い越されなくなりました\n- ページ送り時は待ち行列内の該当ページをその場で先頭へ移動（描画中の 1 ページは中断できません）\n\n### v1.1.0\n- WNACG プラットフォームに対応（スライドページの画像リスト解析と署名付き URL の更新）\n- 個別のオリジナル画像リンクがない場合の解析失敗を修正し、明示的に通知するよう変更\n\n### v1.0.0\n- WebGL2 による Anime4K 超解像パイプライン、カスタム .glsl pass の重ね掛けに対応\n- レンダリング時間の統計オーバーレイと元画像サイズの表示\n- 出力形式の選択（PNG / WebP / JPEG）\n- pixiv プラットフォーム対応\n- 画像取得のリトライ処理を改善\n\nhanFengSan/eHunter（作者 Alex Chen）の MIT ライセンスに基づく拡張版です。",
-        "time": 1794463628769,
+        "title": "eHunter Enhanced v1.2.0",
+        "version": "1.2.0",
+        "text": "### v1.2.0\n- 超解像の待ち行列を読む方向に合わせて変更：現在のページ → 次の 3 ページ → 前の 1 ページ。それより前のページは列から外す\n- 外したタスクは「失敗」ではなくキャンセル扱い。戻ると再登録されます\n\n### v1.1.3\n- 超解像キャッシュ（LRU 8 ページ）の追い出し時に、その画像を表示中のページを元画像へ戻すよう修正。離れたページに戻った際、無効な blob に当たって再試行する問題を解消\n- キャッシュ全消去（出力形式 / シェーダー変更）も同じ通知経路を使用\n\n### v1.1.2\n- 画像の読み込み失敗後、10 / 30 / 90 / 300 秒の間隔で自動再試行し、失敗メッセージにカウントダウンを表示\n- 「更新 / ソース切替 / オリジナル」を手動で押すか、そのページに戻ると間隔をリセット\n\n### v1.1.1\n- 超解像の待ち行列を「現在のページからの距離」順に変更。表示中のページが先に処理され、先読みページに追い越されなくなりました\n- ページ送り時は待ち行列内の該当ページをその場で先頭へ移動（描画中の 1 ページは中断できません）\n\n### v1.1.0\n- WNACG プラットフォームに対応（スライドページの画像リスト解析と署名付き URL の更新）\n- 個別のオリジナル画像リンクがない場合の解析失敗を修正し、明示的に通知するよう変更\n\n### v1.0.0\n- WebGL2 による Anime4K 超解像パイプライン、カスタム .glsl pass の重ね掛けに対応\n- レンダリング時間の統計オーバーレイと元画像サイズの表示\n- 出力形式の選択（PNG / WebP / JPEG）\n- pixiv プラットフォーム対応\n- 画像取得のリトライ処理を改善\n\nhanFengSan/eHunter（作者 Alex Chen）の MIT ライセンスに基づく拡張版です。",
+        "time": 1794464246717,
         "duration": 432000000,
         "always": true,
         "operations": [

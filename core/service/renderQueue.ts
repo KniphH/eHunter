@@ -10,6 +10,39 @@
  */
 export const DEFAULT_RENDER_PRIORITY = 1000
 
+/**
+ * 往后看几页。阅读方向是往后，所以后面的页比「前面那一页」更值得先算。
+ */
+export const SUPER_RES_LOOKAHEAD = 3
+
+/**
+ * 排队窗口：当前页前一页 ~ 当前页往后 3 页。
+ *
+ * 用户已经翻过去的前面的页不再排队——它们要么在缓存里，要么翻回去时重新算，
+ * 排在队里只会拖慢当前阅读方向。前面只留一页，是为了覆盖「往回翻一页」的情况。
+ */
+export function isInSuperResWindow(pageIndex: number, center: number): boolean {
+    return pageIndex >= center - 1 && pageIndex <= center + SUPER_RES_LOOKAHEAD
+}
+
+/**
+ * 排队优先级，数值越小越先：
+ * - 当前页 0
+ * - 后面的第 k 页 = k × 10
+ * - 前面第 1 页 = 100（比后面三页都靠后）
+ * - 窗口外 = 10000（正常情况下入队前就已被过滤）
+ */
+export function superResPriority(pageIndex: number, center: number): number {
+    if (!isInSuperResWindow(pageIndex, center)) {
+        return 10000
+    }
+    const delta = pageIndex - center
+    if (delta >= 0) {
+        return delta * 10
+    }
+    return 100
+}
+
 export interface RenderJob {
     /** 去重键：同一张原图只排一次 */
     url: string
@@ -17,6 +50,8 @@ export interface RenderJob {
     /** 入队序号，只在同优先级之间决定先后 */
     seq: number
     run: () => Promise<void>
+    /** 被窗口裁掉时调用，让挂起的 promise 结束（不是失败，只是没算） */
+    cancel: () => void
 }
 
 /**

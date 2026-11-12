@@ -262,6 +262,7 @@ const {
     failLoad,
     loaded,
     resetAutoRetry,
+    upgradeBySuperResolution,
 } = usePageImageLoader({
     index: props.index,
     albumService,
@@ -310,6 +311,10 @@ function ensureLoadedWhenVisible() {
         const src = imgPageInfo.value.displaySrc || imgPageInfo.value.src
         if (src) {
             void warmMagnifierSource(src)
+        }
+        // 之前可能因为不在阅读方向上而没排超分；现在滚回窗口内，补一次（内部幂等）
+        if (!imgPageInfo.value.displaySrc) {
+            void upgradeBySuperResolution()
         }
         return
     }

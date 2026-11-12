@@ -2,7 +2,7 @@
 
 [中文版](README_CN.md)
 
-An enhanced fork of [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) (based on `master@43a0a13`). Keeps the original scroll / book reader and adds **WebGL2 super-resolution**, a **detailed runtime stats overlay**, **pixiv support**, and more. Current version **v1.1.3**.
+An enhanced fork of [hanFengSan/eHunter](https://github.com/hanFengSan/eHunter) (based on `master@43a0a13`). Keeps the original scroll / book reader and adds **WebGL2 super-resolution**, a **detailed runtime stats overlay**, **pixiv support**, and more. Current version **v1.2.0**.
 
 Original author Alex Chen, Copyright (c) 2017 Alex, MIT licensed (see [LICENSE](LICENSE)). This fork uses its own `@name` / `@namespace`, so it **can be installed alongside the original** without overwriting it.
 
