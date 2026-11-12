@@ -727,6 +727,8 @@ class SuperResolutionService {
 
     /** 本服务产出的 blob 地址，用来避免对超分结果二次超分 */
     private ownUrls = new Set<string>()
+    /** 缓存淘汰/清空时通知 UI，让正显示着那张超分图的页先退回原图 */
+    private evictListener: ((url: string) => void) | null = null
 
     getShaderFiles(): SuperResShaderFile[] {
         return readShaderFiles()
@@ -837,12 +839,14 @@ class SuperResolutionService {
     }
 
     clearCache(): void {
-        for (const entry of this.resultCache.values()) {
-            URL.revokeObjectURL(entry.result.url)
-        }
+        const urls = [...this.resultCache.values()].map((entry) => entry.result.url)
         this.resultCache.clear()
         this.ownUrls.clear()
         this.failed.clear()
+        for (const url of urls) {
+            this.evictListener?.(url)
+            URL.revokeObjectURL(url)
+        }
         this.invalidateSlot()
     }
 
@@ -853,6 +857,17 @@ class SuperResolutionService {
     /** 这条地址是不是我们自己产出的超分图（用来区分「超分结果」和「兜底 blob」） */
     isOwnUrl(url: string): boolean {
         return this.ownUrls.has(url)
+    }
+
+    /**
+     * 注册「某张超分结果被回收」的回调。
+     *
+     * 服务不知道 UI 里哪一页正显示着这张图；如果 revoke 之后才让 UI 自己发现，
+     * `<img>` 会先撞一次已失效的 blob，表现为翻回远页时多出一轮加载失败与重试。
+     * 调用方收到回调后应把对应页的 `displaySrc` 摘掉，立刻退回原图。
+     */
+    setEvictListener(listener: ((url: string) => void) | null): void {
+        this.evictListener = listener
     }
 
     /** 取某张原图的超分结果描述。缓存里没有就返回 null */
@@ -910,6 +925,7 @@ class SuperResolutionService {
             const oldest = this.resultCache.get(oldestKey)
             this.resultCache.delete(oldestKey)
             if (oldest) {
+                this.evictListener?.(oldest.result.url)
                 this.ownUrls.delete(oldest.result.url)
                 URL.revokeObjectURL(oldest.result.url)
             }

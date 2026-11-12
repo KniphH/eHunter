@@ -1301,6 +1301,17 @@ function prioritizeSuperResAround(center: number): void {
     })
 }
 
+// 超分缓存淘汰（LRU 8 页）或清空时，把正显示着那张超分图的页退回原图。
+// 服务侧 revoke 之后 blob 就失效了，UI 若还指着它，<img> 会先撞一次错误再回退。
+// 这里直接改字段而不走 storeAction：模块初始化阶段 storeAction 还没定义。
+superResolutionService.setEvictListener((url) => {
+    for (const info of store.imgPageInfos) {
+        if (info.displaySrc === url) {
+            info.displaySrc = ''
+        }
+    }
+})
+
 export const storeAction = {
     toggleShowMoreSettings: () => {
         storeAction.toggleShowMoreSettingsDialog()
