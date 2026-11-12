@@ -100,6 +100,9 @@ import {
     summarizeAlbum,
 } from '../service/StatsService'
 
+/** 单页从解码到编码超过这个时长，就在「超分」分区里标一条警告（手机上 3s 已经明显卡顿） */
+const SUPER_RES_SLOW_MS = 3000
+
 const panelRef = ref<HTMLElement | null>(null)
 const pos = ref({ x: 16, y: 16 })
 const dragging = ref(false)
@@ -351,6 +354,16 @@ const superRows = computed(() => {
             value: `${t('statsDecode')} ${formatMs(last.decodeMs)} · ${t('statsGpu')} ${formatMs(last.gpuMs)}`
                 + ` · ${t('statsEncode')} ${formatMs(last.encodeMs)} · ${t('statsTotalMs')} ${formatMs(last.totalMs)}`,
         })
+        // 「解码 → 渲染 → 编码」这一段超过阈值：多半是手机在跑大图，提示一下别以为是卡死。
+        // 不用 totalMs：那还包含取图（网络），网络慢不该被算成超分慢。
+        const processMs = last.decodeMs + last.gpuMs + last.encodeMs
+        if (processMs >= SUPER_RES_SLOW_MS) {
+            rows.push({
+                key: t('statsSuperResSlow'),
+                value: formatMs(processMs),
+                warn: true,
+            })
+        }
     }
     return rows
 })

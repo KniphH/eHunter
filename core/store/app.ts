@@ -1,5 +1,6 @@
 import { computed, reactive, watch } from 'vue'
 import { i18n, lang } from './i18n'
+import { isMobileDevice } from '../utils/runtimeEnv'
 import type { AlbumService } from '../service/AlbumService'
 import { NameAlbumService } from '../service/AlbumService'
 import type { ImgPageInfo, ThumbInfo } from 'core/model/model'
@@ -940,10 +941,11 @@ function applyUnifiedSettingsPreference() {
     if (typeof setting.lang === 'string' && ['cn', 'en', 'jp'].includes(setting.lang)) {
         lang.value = setting.lang
     }
-    // 编码要同步给超分服务：老存档里没有这个字段就按 png 处理
-    store.superResEncode = setting.superResEncode === 'webp' || setting.superResEncode === 'jpeg'
-        ? setting.superResEncode
-        : 'png'
+    // 编码要同步给超分服务：存档里有合法值就用存档，没有就按设备默认（手机 JPEG / 桌面 PNG）
+    const savedEncode = setting.superResEncode
+    store.superResEncode = savedEncode === 'png' || savedEncode === 'webp' || savedEncode === 'jpeg'
+        ? savedEncode
+        : (isMobileDevice() ? 'jpeg' : 'png')
     setOutputEncode(store.superResEncode)
     if (typeof setting.hasShownWelcomeInstruction === 'boolean') {
         store.hasShownWelcomeInstruction = setting.hasShownWelcomeInstruction
@@ -1083,7 +1085,8 @@ export const store = reactive({
     magnifierZoom: 3,
     magnifierAreaSize: 80,
     superResEnabled: false,
-    superResEncode: <SuperResEncode>'png',
+    // 手机默认 JPEG：同页体积约为 PNG 的 1/12，编码也更快，避免 8 页缓存把内存撑爆
+    superResEncode: <SuperResEncode>(isMobileDevice() ? 'jpeg' : 'png'),
     hasShownWelcomeInstruction: false,
     hasShownBookInstruction: false,
     lastSeenVersionNotice: '',

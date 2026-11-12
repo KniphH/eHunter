@@ -1124,6 +1124,11 @@ export default <any>{
       en: 'Upscaled',
       jp: '超解像結果'
     },
+    statsSuperResSlow: {
+      cn: '超分时间过长',
+      en: 'super-resolution is slow',
+      jp: '超解像に時間がかかっています'
+    },
     statsDisplayKind: {
       cn: '图片来源',
       en: 'Source of image',
