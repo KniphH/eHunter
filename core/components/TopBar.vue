@@ -63,7 +63,7 @@ import { i18n } from '../store/i18n'
 import { store, storeAction, computedVisibleQuickSettingIds, settingFieldMap } from '../store/app'
 import MoreSettingsDialog from './MoreSettingsDialog.vue'
 import DownloadConfirmDialog from './dialog/DownloadConfirmDialog.vue'
-import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch, type CSSProperties } from 'vue'
 import { getFieldValue, setFieldValue, getDropList, getNumList, getNumSuffix } from '../store/settingFieldRuntime'
 
 const emit = defineEmits(['closeEHunter'])
@@ -78,7 +78,7 @@ const isMeasuring = ref(false)
 let checkOverlapTimer: number | null = null
 
 // 获取元素的样式
-function getItemStyle(index: number) {
+function getItemStyle(index: number): CSSProperties {
     if (isMeasuring.value) {
         // 测量阶段：使用 visibility: hidden 保持布局但不可见
         return { visibility: 'hidden' }

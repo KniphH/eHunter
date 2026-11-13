@@ -76,7 +76,10 @@ function toImageBlob(bytes: Uint8Array): Blob {
     if (!type) {
         throw new Error('IMAGE_MAGIC_MISSING')
     }
-    return new Blob([bytes], { type })
+    // TS 5.9 把 Uint8Array 泛型化了，`Uint8Array<ArrayBufferLike>` 不被 BlobPart 接受
+    // （BlobPart 要求 ArrayBuffer 视图）。运行时 Blob 接受任何 ArrayBufferView，
+    // 这里只做类型断言，不复制字节。
+    return new Blob([bytes as unknown as BlobPart], { type })
 }
 
 export function fetchImageByGM(url: string): Promise<Blob> {
