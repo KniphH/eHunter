@@ -1,5 +1,11 @@
 // a service for crossing platform
 /* eslint-disable no-undef */
+import {
+    readScriptValue,
+    writeScriptValue,
+    removeScriptValue,
+    clearScriptStorage,
+} from '../../../../core/service/scriptStorage'
 
 // hack for test
 if (typeof chrome === 'undefined') {
@@ -18,74 +24,18 @@ export default {
         local: window.localStorage
     },
     storageGet(key, defaultValue = null) {
-        try {
-            if (typeof GM_getValue === 'function') {
-                return GM_getValue(key, defaultValue);
-            }
-        } catch (e) {
-        }
-        try {
-            let val = window.localStorage.getItem(key);
-            return val === null ? defaultValue : val;
-        } catch (e) {
-            return defaultValue;
-        }
+        return readScriptValue(key, defaultValue);
     },
     storageSet(key, value) {
-        try {
-            if (typeof GM_setValue === 'function') {
-                GM_setValue(key, value);
-                return true;
-            }
-        } catch (e) {
-        }
-        try {
-            let val = value;
-            if (typeof value !== 'string') {
-                val = JSON.stringify(value);
-            }
-            window.localStorage.setItem(key, val);
-            return true;
-        } catch (e) {
-            return false;
-        }
+        return writeScriptValue(key, value);
     },
     storageRemove(key) {
-        try {
-            if (typeof GM_deleteValue === 'function') {
-                GM_deleteValue(key);
-                return true;
-            }
-        } catch (e) {
-        }
-        try {
-            window.localStorage.removeItem(key);
-            return true;
-        } catch (e) {
-            return false;
-        }
+        return removeScriptValue(key);
     },
     storageClear() {
-        try {
-            if (typeof GM_listValues === 'function' && typeof GM_deleteValue === 'function') {
-                const keys = GM_listValues();
-                if (Array.isArray(keys)) {
-                    keys.forEach(key => {
-                        try {
-                            GM_deleteValue(key);
-                        } catch (e) {
-                        }
-                    });
-                }
-            }
-        } catch (e) {
-        }
-        try {
-            window.localStorage.clear();
-            return true;
-        } catch (e) {
-            return false;
-        }
+        // 只清本脚本自己的键；原来直接 localStorage.clear() 会把站点数据一起清掉
+        clearScriptStorage([]);
+        return true;
     },
     getExtension() {
         return chrome.extension;

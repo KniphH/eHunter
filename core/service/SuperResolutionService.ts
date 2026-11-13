@@ -22,6 +22,7 @@ import Logger from '../utils/logger'
 import { fetchImageBlob } from './ImageFetchService'
 import { reportRender } from './StatsService'
 import { DEFAULT_RENDER_PRIORITY, takeNextJob, type RenderJob } from './renderQueue'
+import { readScriptValue, writeScriptValue } from './scriptStorage'
 
 export interface SuperResShaderFile {
     name: string
@@ -651,39 +652,6 @@ interface StoredShaderConfig {
     updatedAt: string
 }
 
-function readStorageValue(key: string): any {
-    const gmGetValue = (globalThis as any).GM_getValue
-    if (typeof gmGetValue === 'function') {
-        try {
-            return gmGetValue(key, null)
-        } catch (e) {
-            return null
-        }
-    }
-    try {
-        const raw = window.localStorage.getItem(key)
-        return raw ? JSON.parse(raw) : null
-    } catch (e) {
-        return null
-    }
-}
-
-function writeStorageValue(key: string, value: any): void {
-    const gmSetValue = (globalThis as any).GM_setValue
-    if (typeof gmSetValue === 'function') {
-        try {
-            gmSetValue(key, value)
-            return
-        } catch (e) {
-            // fallthrough to localStorage
-        }
-    }
-    try {
-        window.localStorage.setItem(key, JSON.stringify(value))
-    } catch (e) {
-    }
-}
-
 function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
     if (!raw || !Array.isArray(raw.files)) {
         return []
@@ -702,7 +670,7 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
 }
 
 function readShaderFiles(): SuperResShaderFile[] {
-    return normalizeShaderFiles(readStorageValue(STORAGE_KEY))
+    return normalizeShaderFiles(readScriptValue(STORAGE_KEY))
 }
 
 function writeShaderFiles(files: SuperResShaderFile[]): void {
@@ -711,7 +679,7 @@ function writeShaderFiles(files: SuperResShaderFile[]): void {
         files,
         updatedAt: new Date().toISOString(),
     }
-    writeStorageValue(STORAGE_KEY, payload)
+    writeScriptValue(STORAGE_KEY, payload)
 }
 
 export type SuperResEncode = 'png' | 'webp' | 'jpeg'

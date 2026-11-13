@@ -49,17 +49,9 @@ const EHUNTER_OPEN_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const EHUNTER_CLOSE_EASING = 'cubic-bezier(0.55, 0.08, 0.68, 0.53)'
 
 function readEHunterStatus(): boolean {
+  // 存储层统一按结构化值返回后，这里不用再兼容 'true'/'false' 字符串
   const value = PlatformService.storageGet(EHUNTER_STATUS_KEY, true)
-  if (typeof value === 'boolean') {
-    return value
-  }
-  if (value === 'true') {
-    return true
-  }
-  if (value === 'false') {
-    return false
-  }
-  return true
+  return typeof value === 'boolean' ? value : true
 }
 
 function writeEHunterStatus(open: boolean): void {

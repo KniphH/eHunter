@@ -5,7 +5,7 @@ import type { AlbumService } from '../service/AlbumService'
 import { NameAlbumService } from '../service/AlbumService'
 import type { ImgPageInfo, ThumbInfo } from 'core/model/model'
 import { initViewportSizeUpdater, initKeyboardListener, resetAutoFlipTimer, checkInstructions, openWelcomeInstructionDialog, checkVersion } from './event'
-import PlatformService from '../../src/platform/base/service/PlatformService.js'
+import { readScriptValue, writeScriptValue } from '../service/scriptStorage'
 import {
     clampThumbSize,
     createDefaultLayoutPreference,
@@ -203,36 +203,7 @@ function getSystemPreferredPageTurnAnimationMode(): PageTurnAnimationMode {
 }
 
 function readByUserscriptStorage(): any {
-    const gmGetValue = (<any>globalThis).GM_getValue
-    if (typeof gmGetValue === 'function') {
-        return gmGetValue(pageTurnAnimationPreferenceKey, null)
-    }
-    return null
-}
-
-function writeByUserscriptStorage(data: PageTurnAnimationPreference): boolean {
-    const gmSetValue = (<any>globalThis).GM_setValue
-    if (typeof gmSetValue === 'function') {
-        gmSetValue(pageTurnAnimationPreferenceKey, data)
-        return true
-    }
-    return false
-}
-
-function readByStorageService(): any {
-    try {
-        return PlatformService.storageGet(pageTurnAnimationPreferenceKey, null)
-    } catch (e) {
-        return null
-    }
-}
-
-function writeByStorageService(data: PageTurnAnimationPreference): boolean {
-    try {
-        return PlatformService.storageSet(pageTurnAnimationPreferenceKey, data)
-    } catch (e) {
-        return false
-    }
+    return readScriptValue(pageTurnAnimationPreferenceKey, null)
 }
 
 function parsePageTurnPreference(rawData: any): PageTurnAnimationPreference | null {
@@ -267,47 +238,23 @@ function buildPageTurnPreference(mode: PageTurnAnimationMode): PageTurnAnimation
 }
 
 function persistPageTurnAnimationMode(mode: PageTurnAnimationMode) {
-    const preference = buildPageTurnPreference(mode)
-    const usedUserscriptStorage = writeByUserscriptStorage(preference)
-    if (!usedUserscriptStorage) {
-        writeByStorageService(preference)
-    }
+    writeScriptValue(pageTurnAnimationPreferenceKey, buildPageTurnPreference(mode))
 }
 
 function readPageTurnAnimationMode(): PageTurnAnimationMode {
-    const userscriptStored = parsePageTurnPreference(readByUserscriptStorage())
-    if (userscriptStored) {
-        return userscriptStored.animationMode
-    }
-    const localStored = parsePageTurnPreference(readByStorageService())
-    if (localStored) {
-        return localStored.animationMode
+    const stored = parsePageTurnPreference(readByUserscriptStorage())
+    if (stored) {
+        return stored.animationMode
     }
     return getSystemPreferredPageTurnAnimationMode()
 }
 
 function readUnifiedSettingsRaw(): any {
-    const gmGetValue = (<any>globalThis).GM_getValue
-    if (typeof gmGetValue === 'function') {
-        return gmGetValue(unifiedSettingsPreferenceKey, null)
-    }
-    try {
-        return PlatformService.storageGet(unifiedSettingsPreferenceKey, null)
-    } catch (e) {
-        return null
-    }
+    return readScriptValue(unifiedSettingsPreferenceKey, null)
 }
 
 function writeUnifiedSettingsRaw(data: UnifiedSettingsPreference): void {
-    const gmSetValue = (<any>globalThis).GM_setValue
-    if (typeof gmSetValue === 'function') {
-        gmSetValue(unifiedSettingsPreferenceKey, data)
-        return
-    }
-    try {
-        PlatformService.storageSet(unifiedSettingsPreferenceKey, data)
-    } catch (e) {
-    }
+    writeScriptValue(unifiedSettingsPreferenceKey, data)
 }
 
 function sanitizeQuickSettingSelection(rawSelection: any, rawOrder: any): { selected: string[], order: string[] } {
