@@ -62,6 +62,8 @@ interface TextureSlot {
     tex: WebGLTexture
     w: number
     h: number
+    /** 这张纹理是管线中间产物（RGBA16F 空纹理），可以回收进池；源图纹理不行 */
+    reusable: boolean
 }
 
 const STORAGE_KEY = 'ehunter_superres_shaders_v1'
@@ -69,6 +71,9 @@ const RESULT_CACHE_LIMIT = 8
 /** 排队任务被窗口裁掉时的结束原因：不是失败，不能记进 failed */
 const QUEUE_DROPPED = 'QUEUE_DROPPED'
 const SHADER_SHARED_NAMES = new Set(['MAIN', 'HOOKED'])
+/** 中间纹理池：单尺寸最多留 4 张、全局最多 8 张，防止换图时把显存攒住 */
+const TEXTURE_POOL_PER_SIZE = 4
+const TEXTURE_POOL_TOTAL = 8
 
 // ---------------------------------------------------------------- shader 解析
 
@@ -348,6 +353,9 @@ class SuperResRenderer {
     private presentProgram: WebGLProgram | null = null
     private quadBuffer: WebGLBuffer
     private sizes: Record<string, { w: number, h: number }> = {}
+    /** 按 `宽x高` 分桶的空纹理，跨页复用；空纹理重新分配是本页最没意义的一笔开销 */
+    private texturePool = new Map<string, WebGLTexture[]>()
+    private poolCount = 0
 
     constructor(gl: WebGL2RenderingContext) {
         this.gl = gl
@@ -383,6 +391,62 @@ class SuperResRenderer {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null)
         }
         return texture
+    }
+
+    /**
+     * 取一张 w×h 的 RGBA16F 渲染目标。
+     *
+     * 尺寸相同就直接复用上一页留下的那张：`createTexture + texImage2D(RGBA16F)` 每次都要
+     * 让驱动新分配一块显存，一条 16 pass 的链一页就是 16 次分配 + 16 次释放，
+     * 而每个 pass 都是全屏覆盖写，旧内容本来就没用。
+     */
+    private acquireRenderTexture(width: number, height: number): WebGLTexture {
+        const key = `${width}x${height}`
+        const bucket = this.texturePool.get(key)
+        if (bucket && bucket.length > 0) {
+            this.poolCount--
+            const reused = bucket.pop() as WebGLTexture
+            if (bucket.length === 0) {
+                this.texturePool.delete(key)
+            }
+            return reused
+        }
+        return this.createTexture(width, height, null)
+    }
+
+    /** 把不再被任何名字引用的中间纹理放回池；池满就直接删掉 */
+    private recycleTexture(slot: TextureSlot): void {
+        const bucket = this.texturePool.get(`${slot.w}x${slot.h}`)
+        const full = this.poolCount >= TEXTURE_POOL_TOTAL
+            || (bucket !== undefined && bucket.length >= TEXTURE_POOL_PER_SIZE)
+        if (full) {
+            this.deleteTexture(slot.tex)
+            return
+        }
+        if (bucket) {
+            bucket.push(slot.tex)
+        } else {
+            this.texturePool.set(`${slot.w}x${slot.h}`, [slot.tex])
+        }
+        this.poolCount++
+    }
+
+    private deleteTexture(texture: WebGLTexture): void {
+        this.gl.deleteTexture(texture)
+        const framebuffer = this.framebufferCache.get(texture)
+        if (framebuffer) {
+            this.gl.deleteFramebuffer(framebuffer)
+            this.framebufferCache.delete(texture)
+        }
+    }
+
+    /** 丢掉一个名字指向的纹理：可回收的放回池，源图直接删 */
+    private releaseSlot(slot: TextureSlot): void {
+        if (slot.reusable) {
+            this.recycleTexture(slot)
+        } else {
+            this.deleteTexture(slot.tex)
+        }
     }
 
     private getFramebuffer(texture: WebGLTexture): WebGLFramebuffer {
@@ -441,7 +505,7 @@ class SuperResRenderer {
         context.drawImage(bitmap, 0, 0)
 
         const texture = this.createTexture(width, height, flipped as unknown as TexImageSource)
-        this.textureCache.set('MAIN', { tex: texture, w: width, h: height })
+        this.textureCache.set('MAIN', { tex: texture, w: width, h: height, reusable: false })
         this.sizes = { MAIN: { w: width, h: height } }
     }
 
@@ -460,7 +524,7 @@ class SuperResRenderer {
                 }
             }
 
-            const outTexture = this.createTexture(outWidth, outHeight, null)
+            const outTexture = this.acquireRenderTexture(outWidth, outHeight)
             const framebuffer = this.getFramebuffer(outTexture)
             const program = this.getProgram(pass)
 
@@ -484,8 +548,20 @@ class SuperResRenderer {
 
             gl.drawArrays(gl.TRIANGLES, 0, 3)
 
-            this.textureCache.set(pass.save, { tex: outTexture, w: outWidth, h: outHeight })
+            // 同名纹理被覆盖后旧的那张没有任何名字再指向它，立刻放回池：
+            // 一条链实际同时占用的纹理数从「pass 数」降到 2~3 张，显存也一起省了。
+            // 回收只发生在这一趟绘制之后，驱动按命令流顺序保证前一趟的读取已经排完。
+            const previous = this.textureCache.get(pass.save)
+            this.textureCache.set(pass.save, {
+                tex: outTexture,
+                w: outWidth,
+                h: outHeight,
+                reusable: true,
+            })
             this.sizes[pass.save] = { w: outWidth, h: outHeight }
+            if (previous) {
+                this.releaseSlot(previous)
+            }
         }
     }
 
@@ -495,8 +571,11 @@ class SuperResRenderer {
         if (!final) {
             throw new Error('no MAIN output')
         }
-        target.width = final.w
-        target.height = final.h
+        // 尺寸没变就别赋值：给 width/height 赋同样的值也会重置整个绘图缓冲
+        if (target.width !== final.w || target.height !== final.h) {
+            target.width = final.w
+            target.height = final.h
+        }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.viewport(0, 0, final.w, final.h)
         if (!this.presentProgram) {
@@ -527,24 +606,24 @@ class SuperResRenderer {
         return { width: final.w, height: final.h }
     }
 
-    /** 换页时清掉上一页的中间纹理，但保留已编译的 pass 程序（编译才是大头） */
+    /** 换页时解绑并清掉上一页的纹理名字，但保留已编译的 pass 程序（编译才是大头）与纹理池 */
     resetTextures(): void {
-        const gl = this.gl
         for (const slot of this.textureCache.values()) {
-            gl.deleteTexture(slot.tex)
-        }
-        for (const framebuffer of this.framebufferCache.values()) {
-            gl.deleteFramebuffer(framebuffer)
+            this.releaseSlot(slot)
         }
         this.textureCache.clear()
-        this.framebufferCache.clear()
         this.sizes = {}
     }
 
     dispose(): void {
         const gl = this.gl
         for (const slot of this.textureCache.values()) {
-            gl.deleteTexture(slot.tex)
+            this.deleteTexture(slot.tex)
+        }
+        for (const texture of this.texturePool.values()) {
+            for (const tex of texture) {
+                this.deleteTexture(tex)
+            }
         }
         for (const framebuffer of this.framebufferCache.values()) {
             gl.deleteFramebuffer(framebuffer)
@@ -557,6 +636,8 @@ class SuperResRenderer {
         }
         gl.deleteBuffer(this.quadBuffer)
         this.textureCache.clear()
+        this.texturePool.clear()
+        this.poolCount = 0
         this.framebufferCache.clear()
         this.programCache.clear()
     }
