@@ -846,7 +846,12 @@ function parseUnifiedSettingsPreference(rawData: any): UnifiedSettingsPreference
     }
 }
 
-function persistUnifiedSettingsState() {
+/** 设置写入的合并窗口：拖滑杆时每次 input 都会触发 setter，没必要每次都序列化整份设置 */
+const SETTINGS_PERSIST_DEBOUNCE_MS = 150
+let settingsPersistTimer: number | null = null
+
+/** 立即写入。只由 debounce 到期或页面隐藏/卸载时调用，setter 里请用 persistUnifiedSettingsState() */
+function writeUnifiedSettingsState() {
     const payload: UnifiedSettingsPreference = {
         schemaVersion: unifiedSettingsPreferenceSchemaVersion,
         updatedAt: new Date().toISOString(),
@@ -886,8 +891,43 @@ function persistUnifiedSettingsState() {
             ...store.shortcutBindings,
         },
     }
-    writeUnifiedSettingsRaw(payload)
+    try {
+        writeUnifiedSettingsRaw(payload)
+    } catch (e) {
+        // 存储写失败（配额满 / 脚本管理器拒绝）不该让设置面板卡住
+        console.warn('[eHunter] 设置写入失败', e)
+    }
 }
+
+/**
+ * 安排一次写入：SETTINGS_PERSIST_DEBOUNCE_MS 内的多次调用合并成一次。
+ * 页面隐藏或卸载时由 flushSettingsPersist() 兜底，避免最后一次改动丢失。
+ */
+function persistUnifiedSettingsState() {
+    if (settingsPersistTimer !== null) {
+        window.clearTimeout(settingsPersistTimer)
+    }
+    settingsPersistTimer = window.setTimeout(() => {
+        settingsPersistTimer = null
+        writeUnifiedSettingsState()
+    }, SETTINGS_PERSIST_DEBOUNCE_MS)
+}
+
+function flushSettingsPersist() {
+    if (settingsPersistTimer === null) {
+        return
+    }
+    window.clearTimeout(settingsPersistTimer)
+    settingsPersistTimer = null
+    writeUnifiedSettingsState()
+}
+
+window.addEventListener('beforeunload', flushSettingsPersist)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        flushSettingsPersist()
+    }
+})
 
 function applyUnifiedSettingsPreference() {
     const preference = parseUnifiedSettingsPreference(readUnifiedSettingsRaw())
