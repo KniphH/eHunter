@@ -221,13 +221,32 @@ export function startProbe(): () => void {
     }
     rafId = window.requestAnimationFrame(loop)
 
+    /**
+     * 节点数用 MutationObserver 增量维护。
+     *
+     * 原来每 500ms 跑一次 `getElementsByTagName('*').length`：漫画页有几十个页容器，
+     * 节点数几千到上万，浮层一开就是一笔固定开销。增量计数只在 DOM 变动时做加减，
+     * 500ms 的采样只负责把结果写给 UI。
+     */
+    let nodeCount = document.getElementsByTagName('*').length
+    stats.nodes = nodeCount
+    const observer = new MutationObserver((records) => {
+        for (const record of records) {
+            nodeCount += record.addedNodes.length - record.removedNodes.length
+        }
+        if (nodeCount < 0) {
+            nodeCount = 0
+        }
+    })
+    observer.observe(document.documentElement, { childList: true, subtree: true })
+
     const sampleMemory = () => {
         const memory = (performance as any).memory
         if (memory) {
             stats.heapUsed = memory.usedJSHeapSize || 0
             stats.heapLimit = memory.jsHeapSizeLimit || 0
         }
-        stats.nodes = document.getElementsByTagName('*').length
+        stats.nodes = nodeCount
         stats.tick++
     }
     sampleMemory()
@@ -237,6 +256,7 @@ export function startProbe(): () => void {
         alive = false
         window.cancelAnimationFrame(rafId)
         window.clearInterval(timer)
+        observer.disconnect()
     }
 }
 
