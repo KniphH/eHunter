@@ -1,4 +1,4 @@
-import { computed, nextTick, onUnmounted, ref, type ComputedRef } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch, type ComputedRef } from 'vue'
 import type { AlbumService } from '../../service/AlbumService'
 import { ImgSrcMode } from '../../model/model'
 import { i18n } from '../../store/i18n'
@@ -852,6 +852,28 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         }
         prefetchNeighborPages(originalSrc)
     }
+
+    /**
+     * 这一页此刻是否落在阅读方向的超分窗口里。
+     *
+     * 加载时窗口外的页会被 upgradeBySuperResolution 直接跳过（不浪费算力），
+     * 但图片只加载一次，走完 afterImageLoaded 就不会再回来了。滚动把它带进窗口时
+     * 必须在这里补一次，否则这页永远不超分——卷轴模式初始预加载的那几页，
+     * 窗口外的部分就是这样被永久漏掉的。
+     */
+    const isInSuperResView = computed(() => isInSuperResWindow(index, store.curViewIndex))
+    watch(isInSuperResView, (inside) => {
+        if (!inside || !store.superResEnabled) {
+            return
+        }
+        if (curLoadStatus.value !== ImgLoadStatus.Loaded) {
+            return
+        }
+        if (!imgPageInfo.value.src || imgPageInfo.value.displaySrc) {
+            return
+        }
+        void upgradeBySuperResolution()
+    })
 
     /** 当前页算完后预取前后各一页（后一页优先），翻过去时直接命中缓存 */
     function prefetchNeighborPages(currentSrc: string) {
