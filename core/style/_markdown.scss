@@ -1,37 +1,24 @@
+/**
+ * 说明弹窗里的 Markdown 样式。
+ *
+ * 只保留轻量渲染器实际会生成的元素：p / 标题 / ul / ol / li / code / a / img / strong。
+ * 原来那份 bootstrap 残留还带着 table、blockquote、pre、sub/sup 等样式，
+ * 对应语法在本项目的文案里一个都没用过，纯属把字节塞进单文件。
+ */
 p.markdown {
     font-size: 14px !important;
     line-height: 1.42857143 !important;
     color: #333 !important;
-    * {
-        box-sizing: border-box;
-    }
 
-    *:before,
-    *:after {
-        box-sizing: border-box;
-    }
-
-    hr {
-        margin-top: 20px;
-        margin-bottom: 20px;
-        border: 0;
-        border-top: 1px solid #eee;
-        height: 0;
-    }
-
-    input,
-    button,
-    select,
-    textarea {
-        font-family: inherit;
-        font-size: inherit;
-        line-height: inherit;
+    p {
+        margin: 0 0 10px !important;
     }
 
     a {
         color: #428bca;
         text-decoration: none;
         background: transparent;
+
         &:hover,
         &:focus {
             color: #2a6496;
@@ -40,34 +27,21 @@ p.markdown {
         }
     }
 
-    p {
-        margin: 0 0 10px !important;
-    }
-
     b,
     strong {
         font-weight: bold;
     }
 
-    h1 {
-        font-size: 36px;
-        margin: .67em 0;
-    }
-
-    h2 {
-        font-size: 30px;
-    }
-
-    h4 {
-        font-size: 18px;
-    }
-
-    h5 {
-        font-size: 14px;
-    }
-
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
     h6 {
-        font-size: 12px;
+        font-family: inherit;
+        font-weight: 500;
+        line-height: 1.1;
+        color: inherit;
     }
 
     h1,
@@ -84,42 +58,17 @@ p.markdown {
         margin-bottom: 10px !important;
     }
 
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        font-family: inherit;
-        font-weight: 500;
-        line-height: 1.1;
-        color: inherit;
-    }
-
-    blockquote {
-        padding: 10px 20px;
-        margin: 0 0 20px;
-        font-size: 17.5px;
-        border-left: 5px solid #eee;
-        &:before {
-            content: '';
-        }
-        &:after {
-            content: '';
-        }
-    }
+    h1 { font-size: 36px; margin: .67em 0; }
+    h2 { font-size: 30px; }
+    h4 { font-size: 18px; }
+    h5 { font-size: 14px; }
+    h6 { font-size: 12px; }
 
     ul,
     ol {
         margin-top: 0;
         margin-bottom: 10px;
-    }
-
-    code,
-    kbd,
-    pre,
-    samp {
-        font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+        padding-left: 20px;
     }
 
     code {
@@ -128,110 +77,12 @@ p.markdown {
         color: #c7254e;
         background-color: #f9f2f4;
         border-radius: 4px;
-    }
-
-    ul {
-        padding-left: 20px;
-    }
-    
-    ul ul,
-    ol ul,
-    ul ol,
-    ol ol {
-        margin-bottom: 0;
-    }
-
-    pre {
-        display: block;
-        padding: 9.5px;
-        margin: 0 0 10px;
-        font-size: 13px;
-        line-height: 1.42857143;
-        color: #333;
-        word-break: break-all;
-        word-wrap: break-word;
-        background-color: #f5f5f5;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        overflow: auto;
-        code {
-            padding: 0;
-            font-size: inherit;
-            color: inherit;
-            white-space: pre-wrap;
-            background-color: transparent;
-            border-radius: 0;
-        }
-    }
-
-    table {
-        width: 100%;
-        max-width: 100%;
-        margin-bottom: 20px;
-        background-color: transparent;
-        border-spacing: 0;
-        border-collapse: collapse;
-    }
-
-    table>caption+thead>tr:first-child>th,
-    table>colgroup+thead>tr:first-child>th,
-    table>thead:first-child>tr:first-child>th,
-    table>caption+thead>tr:first-child>td,
-    table>colgroup+thead>tr:first-child>td,
-    table>thead:first-child>tr:first-child>td {
-        border-top: 0;
-    }
-
-    table>thead>tr>th {
-        vertical-align: bottom;
-        border-bottom: 2px solid #ddd;
-    }
-
-    table>thead>tr>th,
-    table>tbody>tr>th,
-    table>tfoot>tr>th,
-    table>thead>tr>td,
-    table>tbody>tr>td,
-    table>tfoot>tr>td {
-        padding: 8px;
-        line-height: 1.42857143;
-        vertical-align: top;
-        border-top: 1px solid #ddd;
-    }
-
-    th {
-        text-align: left;
-    }
-
-    td,
-    th {
-        padding: 0;
-    }
-
-    tbody>tr:nth-child(odd)>td,
-    tbody>tr:nth-child(odd)>th {
-        background-color: #f9f9f9;
+        font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
     }
 
     img {
         max-width: 35%;
         vertical-align: middle;
         border: 0;
-    }
-
-    sub,
-    sup {
-        position: relative;
-        font-size: 75%;
-        line-height: 0;
-        vertical-align: baseline;
-    }
-
-    sup {
-        top: -.5em;
-    }
-
-    .emoji {
-        height: 1.2em;
     }
 }
