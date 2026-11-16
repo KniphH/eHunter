@@ -164,8 +164,8 @@ function sizeDelta(original: number, upgraded: number): string {
 const currentPage = computed(() => stats.pages[store.curViewIndex] || null)
 
 const pageRows = computed(() => {
-    // 依赖 tick：暂停/进行中这类没有新采样也要跟着时间刷新
-    void stats.tick
+    // 不用 tick 驱动：currentPage 来自 reactive 的 stats.pages，加载中的页每秒
+    // 会被 publishPageState 替换一次快照，引用变了自然重算。
     const page = currentPage.value
     if (!page) {
         return [{ key: t('statsStatus'), value: t('statsNoData') }]
@@ -222,7 +222,7 @@ const pageRows = computed(() => {
 })
 
 const albumTotals = computed(() => {
-    void stats.tick
+    // summarizeAlbum 内部读 stats.pages 的每个值，本身就能追踪到变化
     return summarizeAlbum(store.pageCount)
 })
 
@@ -259,7 +259,7 @@ const albumRows = computed(() => {
 })
 
 const netRows = computed(() => {
-    void stats.tick
+    // reqCount / bytesTotal / failCount 都是 reactive 字段，写入即触发
     let sumBytes = 0
     let sumMs = 0
     for (const item of stats.net) {
@@ -277,7 +277,7 @@ const netRows = computed(() => {
 
 /** 最近 5 条明细，新的在右；柱状图仍然画 12 条，用来看整体节奏 */
 const netSamples = computed(() => {
-    void stats.tick
+    // stats.net 是 reactive 数组，push/shift 自带触发
     const recent = stats.net.slice(-12)
     let fastest = 1
     for (const item of recent) {
@@ -305,6 +305,8 @@ const netSamples = computed(() => {
 const netLines = computed(() => netSamples.value.slice(-5))
 
 const superRows = computed(() => {
+    // 必须依赖 tick：getStats() 读的是超分服务内部的普通字段（非 reactive），
+    // 缓存命中/排队数变化只有靠 tick 才能刷出来。
     void stats.tick
     const rows: Array<{ key: string, value: string, warn?: boolean }> = []
     rows.push({
@@ -369,7 +371,7 @@ const superRows = computed(() => {
 })
 
 const envRows = computed(() => {
-    void stats.tick
+    // heapUsed / fps / nodes 由探针每 500ms 写入 reactive stats
     const heap = stats.heapLimit
         ? `${formatBytes(stats.heapUsed)} / ${formatBytes(stats.heapLimit)}`
         : formatBytes(stats.heapUsed)
@@ -383,6 +385,7 @@ const envRows = computed(() => {
 })
 
 const uptimeText = computed(() => {
+    // 必须依赖 tick：这里唯一的数据源是 Date.now()，没有别的变化能驱动它
     void stats.tick
     if (!stats.openedAt) {
         return ''
