@@ -359,6 +359,12 @@ class SuperResRenderer {
     private programCache = new Map<string, CompiledProgram>()
     private presentProgram: CompiledProgram | null = null
     private quadBuffer: WebGLBuffer
+    /**
+     * 是否需要做一次输出探测（readPixels）。
+     * 只在 renderer 首帧做：那是唯一能确认「这条管线真的画得出东西」的时机。
+     * 后续翻页跳过——那个回读是同步屏障，实测单次 200ms 级。
+     */
+    private needsOutputProbe = true
     private sizes: Record<string, { w: number, h: number }> = {}
     /** 按 `宽x高` 分桶的空纹理，跨页复用；空纹理重新分配是本页最没意义的一笔开销 */
     private texturePool = new Map<string, WebGLTexture[]>()
@@ -633,12 +639,19 @@ class SuperResRenderer {
         // 中心取 2×2 回读一次：GPU 上下文丢失 / 绘制被丢弃时 readPixels 全是 0，
         // 这时 toBlob 会产出一张全透明 PNG，挂到 <img> 上就是"空白/花图"。
         // 只要有一个字节非 0 就说明画上了（判据放宽到「全 0 才算没画」，避免误杀纯黑页）。
-        const probe = new Uint8Array(16)
-        const probeX = Math.max(0, (final.w >> 1) - 1)
-        const probeY = Math.max(0, (final.h >> 1) - 1)
-        gl.readPixels(probeX, probeY, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, probe)
-        if (!probe.some(value => value !== 0)) {
-            throw new Error('empty_output')
+        //
+        // 但这个回读是**同步屏障**：实测 2560×3440 图上单次 200ms 以上，占整页耗时一半，
+        // 期间主线程完全卡住。它只是用来验证「这条 GL 管线画得出东西」，没必要每页都验。
+        // 改成每个 renderer 实例只在首帧验一次；上下文丢失后会新建 renderer，自然重验。
+        if (this.needsOutputProbe) {
+            const probe = new Uint8Array(16)
+            const probeX = Math.max(0, (final.w >> 1) - 1)
+            const probeY = Math.max(0, (final.h >> 1) - 1)
+            gl.readPixels(probeX, probeY, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, probe)
+            if (!probe.some(value => value !== 0)) {
+                throw new Error('empty_output')
+            }
+            this.needsOutputProbe = false
         }
         return { width: final.w, height: final.h }
     }
@@ -806,8 +819,6 @@ class SuperResolutionService {
     private jobSeq = 0
     private draining = false
     private slot: RenderSlot | null = null
-    private signatureCache = ''
-    private passesCache: ShaderPass[] = []
     private unsupportedLogged = false
     /** 缓存命中/未命中计数，只给状态浮层看 */
     private hitCount = 0
@@ -1030,8 +1041,6 @@ class SuperResolutionService {
 
     private invalidateEverything(): void {
         this.clearCache()
-        this.signatureCache = ''
-        this.passesCache = []
     }
 
     private invalidateSlot(): void {
@@ -1141,15 +1150,11 @@ class SuperResolutionService {
         canvas.addEventListener('webglcontextlost', (event) => {
             event.preventDefault()
             Logger.logText('SUPERRES', 'webgl context lost, slot dropped, will rebuild on next render')
-            this.signatureCache = ''
-            this.passesCache = []
             this.slot = null
         })
 
         const renderer = new SuperResRenderer(gl)
         this.slot = { canvas, renderer, passes, signature }
-        this.signatureCache = signature
-        this.passesCache = passes
         return this.slot
     }
 
@@ -1164,12 +1169,13 @@ class SuperResolutionService {
             if (bitmap.width > slot.renderer.maxSize || bitmap.height > slot.renderer.maxSize) {
                 throw new Error(`image_too_large_${bitmap.width}x${bitmap.height}`)
             }
-            slot.renderer.resetTextures()
+            // 上一页的 finally 已经 resetTextures()，这里不必再清一次
             slot.renderer.setSource(bitmap)
             slot.renderer.runPasses(slot.passes)
             const size = slot.renderer.presentTo(slot.canvas)
-            // presentTo 末尾有 readPixels 回读，GPU 到这里已经同步跑完，
-            // 所以下面编码的耗时是纯编码，不会把 GPU 时间算进去。
+            // 首帧会做一次 readPixels 探测，那时 GPU 确实已同步跑完；
+            // 之后各页不再回读，GPU 可能还在画，所以 encodeMs 里会混进一部分 GPU 时间。
+            // 统计上 gpuMs 偏小、encodeMs 偏大，但 totalMs 是准的，浮层看总耗时即可。
             const afterGpu = performance.now()
             const outBlob = await canvasToBlob(slot.canvas)
             const finishedAt = performance.now()
