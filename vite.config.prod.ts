@@ -87,7 +87,7 @@ export default defineConfig({
     middlewareMode: true,
   },
   build: {
-    target: 'es2015',
+    target: 'es2020',
     modulePreload: false,
     lib: { // add 30kb size
       entry: './src/main.ts',
