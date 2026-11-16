@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   active: Boolean,
@@ -82,22 +82,35 @@ function handleOuterClick(e: Event) {
 }
 
 // user a timer, avoiding call 'close' when 'open'
-let timer:any;
+let timer: number | undefined
+
+function stopOuterClickWatch(): void {
+    document.removeEventListener('click', handleOuterClick, true)
+    if (timer) {
+        clearTimeout(timer)
+        timer = undefined
+    }
+}
+
+// 菜单开着时切卷 / 换阅读模式会卸载组件，此时 watch 的 oldVal 不会触发，
+// document 上的捕获监听会连着已卸载的实例一起残留，后续每次点击都白跑一遍。
+onBeforeUnmount(stopOuterClickWatch)
+
+// user a timer, avoiding call 'close' when 'open'
+onBeforeUnmount(stopOuterClickWatch)
+
 watch(() => props.active, async (newVal, oldVal) => {
     if (newVal) {
         offsetX.value = 0
         offsetY.value = 0
         await nextTick()
         adjustToViewport()
-        timer = setTimeout(() => {
+        timer = window.setTimeout(() => {
             document.addEventListener('click', handleOuterClick, true);
         }, 100);
     }
     if (oldVal) {
-        document.removeEventListener('click', handleOuterClick, true);
-        if (timer) {
-            clearTimeout(timer);
-        }
+        stopOuterClickWatch()
     }
 })
 </script>

@@ -59,6 +59,12 @@ interface ShaderPass {
     body: string
 }
 
+interface CompiledProgram {
+    program: WebGLProgram
+    attribPosition: number
+    uniforms: Map<string, WebGLUniformLocation | null>
+}
+
 interface TextureSlot {
     tex: WebGLTexture
     w: number
@@ -350,8 +356,8 @@ class SuperResRenderer {
     private maxTextureSize: number
     private textureCache = new Map<string, TextureSlot>()
     private framebufferCache = new Map<WebGLTexture, WebGLFramebuffer>()
-    private programCache = new Map<string, WebGLProgram>()
-    private presentProgram: WebGLProgram | null = null
+    private programCache = new Map<string, CompiledProgram>()
+    private presentProgram: CompiledProgram | null = null
     private quadBuffer: WebGLBuffer
     private sizes: Record<string, { w: number, h: number }> = {}
     /** 按 `宽x高` 分桶的空纹理，跨页复用；空纹理重新分配是本页最没意义的一笔开销 */
@@ -470,15 +476,38 @@ class SuperResRenderer {
         return framebuffer
     }
 
-    private getProgram(pass: ShaderPass): WebGLProgram {
+    /**
+     * location 在 program link 之后就固定了，跟 program 一起缓存。
+     * 原来每页每个 pass 都重查一次 a_pos / u_outSize / u_NAME / u_NAME_size，
+     * 一条 16 pass 的链每页要查几十次——全是同步的 GL 调用。
+     */
+    private compileProgram(pass: ShaderPass): CompiledProgram {
+        const program = linkProgram(this.gl, VERTEX_SHADER_SOURCE, buildPassFragmentShader(pass))
+        return {
+            program,
+            attribPosition: this.gl.getAttribLocation(program, 'a_pos'),
+            uniforms: new Map([['u_outSize', this.gl.getUniformLocation(program, 'u_outSize')]]),
+        }
+    }
+
+    private getProgram(pass: ShaderPass): CompiledProgram {
         const key = `${pass.binds.join(',')}|${pass.body}`
         const cached = this.programCache.get(key)
         if (cached) {
             return cached
         }
-        const program = linkProgram(this.gl, VERTEX_SHADER_SOURCE, buildPassFragmentShader(pass))
-        this.programCache.set(key, program)
-        return program
+        const compiled = this.compileProgram(pass)
+        this.programCache.set(key, compiled)
+        return compiled
+    }
+
+    private getUniform(compiled: CompiledProgram, name: string): WebGLUniformLocation | null {
+        let loc = compiled.uniforms.get(name)
+        if (loc === undefined) {
+            loc = this.gl.getUniformLocation(compiled.program, name)
+            compiled.uniforms.set(name, loc)
+        }
+        return loc
     }
 
     /**
@@ -527,24 +556,24 @@ class SuperResRenderer {
 
             const outTexture = this.acquireRenderTexture(outWidth, outHeight)
             const framebuffer = this.getFramebuffer(outTexture)
-            const program = this.getProgram(pass)
+            const compiled = this.getProgram(pass)
+            const program = compiled.program
 
             gl.useProgram(program)
             gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
             gl.viewport(0, 0, outWidth, outHeight)
 
-            const attributeLocation = gl.getAttribLocation(program, 'a_pos')
             gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer)
-            gl.enableVertexAttribArray(attributeLocation)
-            gl.vertexAttribPointer(attributeLocation, 2, gl.FLOAT, false, 0, 0)
+            gl.enableVertexAttribArray(compiled.attribPosition)
+            gl.vertexAttribPointer(compiled.attribPosition, 2, gl.FLOAT, false, 0, 0)
 
-            gl.uniform2f(gl.getUniformLocation(program, 'u_outSize'), outWidth, outHeight)
+            gl.uniform2f(this.getUniform(compiled, 'u_outSize'), outWidth, outHeight)
             pass.binds.forEach((name, unit) => {
                 const slot = this.textureCache.get(name) as TextureSlot
                 gl.activeTexture(gl.TEXTURE0 + unit)
                 gl.bindTexture(gl.TEXTURE_2D, slot.tex)
-                gl.uniform1i(gl.getUniformLocation(program, `u_${name}`), unit)
-                gl.uniform2f(gl.getUniformLocation(program, `u_${name}_size`), slot.w, slot.h)
+                gl.uniform1i(this.getUniform(compiled, `u_${name}`), unit)
+                gl.uniform2f(this.getUniform(compiled, `u_${name}_size`), slot.w, slot.h)
             })
 
             gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -580,18 +609,25 @@ class SuperResRenderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.viewport(0, 0, final.w, final.h)
         if (!this.presentProgram) {
-            this.presentProgram = linkProgram(gl, VERTEX_SHADER_SOURCE, buildPresentFragmentShader())
+            const program = linkProgram(gl, VERTEX_SHADER_SOURCE, buildPresentFragmentShader())
+            this.presentProgram = {
+                program,
+                attribPosition: gl.getAttribLocation(program, 'a_pos'),
+                uniforms: new Map([
+                    ['u_tex', gl.getUniformLocation(program, 'u_tex')],
+                    ['u_size', gl.getUniformLocation(program, 'u_size')],
+                ]),
+            }
         }
-        const program = this.presentProgram
-        gl.useProgram(program)
-        const attributeLocation = gl.getAttribLocation(program, 'a_pos')
+        const compiled = this.presentProgram
+        gl.useProgram(compiled.program)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer)
-        gl.enableVertexAttribArray(attributeLocation)
-        gl.vertexAttribPointer(attributeLocation, 2, gl.FLOAT, false, 0, 0)
+        gl.enableVertexAttribArray(compiled.attribPosition)
+        gl.vertexAttribPointer(compiled.attribPosition, 2, gl.FLOAT, false, 0, 0)
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, final.tex)
-        gl.uniform1i(gl.getUniformLocation(program, 'u_tex'), 0)
-        gl.uniform2f(gl.getUniformLocation(program, 'u_size'), final.w, final.h)
+        gl.uniform1i(this.getUniform(compiled, 'u_tex'), 0)
+        gl.uniform2f(this.getUniform(compiled, 'u_size'), final.w, final.h)
         gl.drawArrays(gl.TRIANGLES, 0, 3)
 
         // 中心取 2×2 回读一次：GPU 上下文丢失 / 绘制被丢弃时 readPixels 全是 0，
@@ -629,11 +665,11 @@ class SuperResRenderer {
         for (const framebuffer of this.framebufferCache.values()) {
             gl.deleteFramebuffer(framebuffer)
         }
-        for (const program of this.programCache.values()) {
-            gl.deleteProgram(program)
+        for (const compiled of this.programCache.values()) {
+            gl.deleteProgram(compiled.program)
         }
         if (this.presentProgram) {
-            gl.deleteProgram(this.presentProgram)
+            gl.deleteProgram(this.presentProgram.program)
         }
         gl.deleteBuffer(this.quadBuffer)
         this.textureCache.clear()
@@ -725,7 +761,8 @@ export function setOutputEncode(value: string): void {
         return
     }
     outputEncode = next
-    superResolutionService.clearCache()
+    // 编码只影响 canvas.toBlob 的参数，保留已编译的 shader program 与纹理池
+    superResolutionService.clearCache(true)
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -794,10 +831,15 @@ class SuperResolutionService {
         return readShaderFiles().length > 0
     }
 
-    /** 算法文件指纹，用于让缓存随 shader 变更失效 */
-    getSignature(): string {
-        const files = readShaderFiles()
-        return files.map(file => `${file.name}:${file.text.length}`).join('|')
+    /**
+     * 算法文件指纹，用于让缓存随 shader 变更失效。
+     *
+     * 接受调用方已经读到的 files：ensureSlot 本来就要读一次 files 判断空，
+     * 如果这里再读一次，等于每个渲染页都同步读两遍几十 KB 的 shader 配置。
+     */
+    getSignature(files?: SuperResShaderFile[]): string {
+        const list = files || readShaderFiles()
+        return list.map(file => `${file.name}:${file.text.length}`).join('|')
     }
 
     isSupported(): boolean {
@@ -917,7 +959,12 @@ class SuperResolutionService {
         return this.resultCache.has(sourceUrl)
     }
 
-    clearCache(): void {
+    /**
+     * @param keepSlot 只清结果缓存、保留已编译的 GL slot。
+     *   换输出编码（png/webp/jpeg）只需要改 canvas.toBlob 的参数，
+     *   跟 shader program / 纹理完全无关，没必要把整个渲染器拆了重建。
+     */
+    clearCache(keepSlot = false): void {
         const urls = [...this.resultCache.values()].map((entry) => entry.result.url)
         this.resultCache.clear()
         this.ownUrls.clear()
@@ -926,7 +973,9 @@ class SuperResolutionService {
             this.evictListener?.(url)
             URL.revokeObjectURL(url)
         }
-        this.invalidateSlot()
+        if (!keepSlot) {
+            this.invalidateSlot()
+        }
     }
 
     getCacheSize(): number {
@@ -1056,7 +1105,7 @@ class SuperResolutionService {
         if (files.length === 0) {
             throw new Error('no_shader_selected')
         }
-        const signature = this.getSignature()
+        const signature = this.getSignature(files)
         if (this.slot && this.slot.signature === signature) {
             return this.slot
         }
