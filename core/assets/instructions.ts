@@ -1,117 +1,83 @@
 type SupportedLang = 'cn' | 'en' | 'jp'
 import pkgJson from '../../package.json'
 
+/**
+ * 首次安装时的欢迎说明。
+ *
+ * 原本这份文案是从上游 eHunter 直接搬来的，里面混着上游的教程截图、
+ * eHunter-local 推广、上游作者的邮箱和应用商店好评请求。这个分支既不在商店上架，
+ * 那些截图也已经和现在的界面不符，全部去掉，只留与本分支实际行为一致的操作指引。
+ * 仓库地址走 config.homePage，不在文案里写死。
+ */
 const welcomeInstructionTemplate: Record<SupportedLang, string> = {
     cn: `
-1.Change language/切换语言/言語を変更
-![image-language](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/language.jpg)
+1.切换语言：在顶栏的语言下拉框里选择中文 / English / 日本語。
 
-1.显示/隐藏顶栏和关闭eHunter
-![image-topbar_close](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/topbar_close.jpg)
+2.显示/隐藏顶栏：点击顶栏上的开关键；点关闭键则退出阅读器。
 
-2.在页面右上角点击打开eHunter
-![image-open_ehunter](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/open_ehunter.jpg)
+3.在页面右上角点击 eHunter 开关打开阅读器。
 
-3.\`滚动\`模式下, 支持\`A\`. \`D\`, \`Left(左)\`和\`Right(右)\`键翻页.
+4.\`滚动\`模式下，支持\`A\`. \`D\`, \`Left(左)\`和\`Right(右)\`键翻页。
 
-4.\`书页\`模式下, 点击屏幕下方翻下一页，点击屏幕上方翻到上一页。支持\`A\`. \`D\`, \`Left(左)\`, \`Right(右)\`键翻页. 你也可以用鼠标滚轮翻页.
+5.\`书页\`模式下，点击屏幕下方翻下一页，点击屏幕上方翻到上一页。支持\`A\`. \`D\`, \`Left(左)\`, \`Right(右)\`键翻页，也可以用鼠标滚轮翻页。
 
-5.\`分卷页数\`对性能要求较高,请不要设置过高,可能会导致卡顿.
+6.\`分卷页数\`对性能要求较高，请不要设置过高，可能会导致卡顿。
 
-6.有更多想要的功能, 可以反馈给我, 如果该功能可以有的话, 我有空的时候会支持的.
-
-### iPhone和iPad使用指引
-说明链接：[链接](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_cn.md)
-
-### eHunter-local
-eHunter-local是eHunter的本地版本, 支持Windows和MacOS. [项目主页](https://github.com/hanFengSan/eHunter_local)
-
-[Github下载](https://github.com/hanFengSan/eHunter_local/releases)
+7.像素超分是可选的，在设置里导入 Anime4K 的 .glsl 算法文件后开启；算法文件保存在油猴存储里，所有站点共用。
 
 ### 反馈和建议
-* 可在[Github]({{HOME_PAGE}})上开issue给我.
-* 可发邮件到我邮箱: c360785655@gmail.com
+* 在[Github]({{HOME_PAGE}})上提 issue。
 
 ### 关于
-* 版本: {{VERSION}}
-* 作者: Alex Chen (hanFeng)
-* 项目开源地址: [Github]({{HOME_PAGE}})
-
-如果你喜欢此插件的话,希望能在应用商店上给个好评 8-)
+* eHunter Enhanced v{{VERSION}}
+* 基于 hanFengSan/eHunter（MIT），由 KniphH 维护的增强分支
+* [项目地址]({{HOME_PAGE}})
 `,
     en: `
-1.Change language/切换语言/言語を変更
-![image-language](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/language.jpg)
+1.Change language in the language dropdown on the top bar: Chinese / English / Japanese.
 
-1.Show/hide top bar and close the eHunter
-![image-topbar_close](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/topbar_close.jpg)
+2.Use the top-bar switch to show/hide the bar; the close button exits the reader.
 
-2.Click the button at the upper right corner of this page to open the eHunter
-![image-open_ehunter](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/open_ehunter.jpg)
+3.Click the eHunter switch at the upper right of the page to open the reader.
 
-3.In \`Scroll\` mode, you can turn pages with \`A\`, \`D\`, \`Left\`, and \`Right\`.
+4.In \`Scroll\` mode, you can turn pages with \`A\`, \`D\`, \`Left\`, and \`Right\`.
 
-4.In \`Book\` mode, click the lower part of the screen to go to the next page, and click the upper part to go to the previous page. You can also turn pages with \`A\`, \`D\`, \`Left\`, and \`Right\`, or use the mouse wheel.
+5.In \`Book\` mode, click the lower part of the screen to go to the next page, and click the upper part to go to the previous page. You can also turn pages with \`A\`, \`D\`, \`Left\`, and \`Right\`, or use the mouse wheel.
 
-5.\`Volume size\` has relatively high performance requirements. Avoid setting it too high, or the reader may lag.
+6.\`Volume size\` has relatively high performance requirements. Avoid setting it too high, or the reader may lag.
 
-6.If there are more features you would like, feel free to send feedback. If they are feasible, I will add them when time allows.
-
-### iPhone and iPad Guide
-Guide link: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_en.md)
-
-### eHunter-local
-The eHunter-local is local version of eHunter, supporting Windows and MacOS. [Home Page](https://github.com/hanFengSan/eHunter_local)
-
-[Github releases](https://github.com/hanFengSan/eHunter_local/releases)
+7.Super-resolution is optional: import Anime4K .glsl files in settings, then enable it. Shader files are stored in the userscript manager and shared across all supported sites.
 
 ### Feedback & Suggestions
-* You can open an issue on [Github]({{HOME_PAGE}}).
-* You can also email me at: c360785655@gmail.com
+* Open an issue on [Github]({{HOME_PAGE}}).
 
 ### About
-* Version: {{VERSION}}
-* Author: Alex Chen (hanFeng)
-* Home page of this project: [Github]({{HOME_PAGE}})
-
-If you enjoy this extension, I would really appreciate a five-star rating in the store. 8-)
+* eHunter Enhanced v{{VERSION}}
+* Enhanced fork of hanFengSan/eHunter (MIT), maintained by KniphH
+* [Project home]({{HOME_PAGE}})
 `,
     jp: `
-1.Change language/切换语言/言語を変更
-![image-language](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/language.jpg)
+1.トップバーの言語ドロップダウンで 中国語 / English / 日本語 を切り替えられます。
 
-1.トップバーを表示/非表示にしてeHunterを閉じる
-![image-topbar_close](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/topbar_close.jpg)
+2.トップバーのスイッチでバーを表示/非表示にし、閉じるボタンでリーダーを終了します。
 
-2.このページの右上隅にあるボタンをクリックしてeHunterを開きます
-![image-open_ehunter](https://raw.githubusercontent.com/hanFengSan/eHunter/master/github_image/open_ehunter.jpg)
+3.ページ右上の eHunter スイッチをクリックするとリーダーが開きます。
 
-3.\`スクロール\`モードでは、\`A\`、\`D\`、\`Left\`、\`Right\`キーでページをめくれます。
+4.\`スクロール\`モードでは、\`A\`、\`D\`、\`Left\`、\`Right\`キーでページをめくれます。
 
-4.\`ブック\`モードでは、画面下部をクリックすると次のページ、画面上部をクリックすると前のページに移動します。\`A\`、\`D\`、\`Left\`、\`Right\`キー、またはマウスホイールでもページをめくれます。
+5.\`ブック\`モードでは、画面下部をクリックすると次のページ、画面上部をクリックすると前のページに移動します。\`A\`、\`D\`、\`Left\`、\`Right\`キー、またはマウスホイールでもページをめくれます。
 
-5.\`分巻ページ数\`はパフォーマンス負荷が高いため、上げすぎると動作が重くなる場合があります。
+6.\`分巻ページ数\`はパフォーマンス負荷が高いため、上げすぎると動作が重くなる場合があります。
 
-6.追加してほしい機能があれば、ぜひフィードバックしてください。実現可能であれば、時間のあるときに対応します。
-
-### iPhone と iPad の利用ガイド
-案内リンク: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_jp.md)
-
-### eHunter-local
-eHunter-localはeHunterのローカル版で、WindowsとMacOSをサポートしています。[Home Page](https://github.com/hanFengSan/eHunter_local)
-
-[Github releases](https://github.com/hanFengSan/eHunter_local/releases)
+7.超解像は任意機能です。設定で Anime4K の .glsl ファイルを読み込んで有効にしてください。アルゴリズムファイルはユーザースクリプトマネージャのストレージに保存され、全サイトで共有されます。
 
 ### フィードバックと提案
 * [Github]({{HOME_PAGE}}) で issue を作成できます。
-* メール: c360785655@gmail.com
 
 ### について
-* バージョン: {{VERSION}}
-* 著者: Alex Chen (hanFeng)
-* このプロジェクトのホームページ: [Github]({{HOME_PAGE}})
-
-この拡張機能を気に入っていただけたら、ストアで5つ星評価をいただけるとうれしいです。 8-)
+* eHunter Enhanced v{{VERSION}}
+* hanFengSan/eHunter（MIT）の拡張フォーク、KniphH が保守
+* [プロジェクトのホームページ]({{HOME_PAGE}})
 `,
 }
 
