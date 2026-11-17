@@ -1,60 +1,57 @@
 type SupportedLang = 'cn' | 'en' | 'jp'
 
+/**
+ * 版本更新说明（本地兜底）。
+ *
+ * 远端 update.json 能取到时优先用远端内容；取不到（比如 raw.githubusercontent
+ * 被墙）时用这份。**内容必须与 update.json 保持一致**。
+ *
+ * 原文件里是上游 fork 留下的旧说明（放大镜、打包下载这些），与本仓库的版本号
+ * 完全对不上，已替换为 1.2.x 的真实历史。
+ */
 const versionNotesTemplate: Record<SupportedLang, string> = {
-    cn: `
-### v3.1.0 说明
-* 新增放大镜功能（滚动模式：鼠标左键点击图片打开，书页模式：屏幕中间区域点击图片打开）
-* 支持快捷键自定义（入口：更多设置）
-* 修复”快捷设置“中的拖拽功能
+    cn: `### v1.2.11
+- 修复「版本更新说明」弹窗显示上游旧内容的问题：远端说明拉不到时会回落到脚本内置文本，那份还停留在上游的历史版本上
+- 现在只展示最近几个版本的真实改动
 
-### v3.0.0 说明
-* 支持图片打包下载（触发入口：页面右上角的“更多”按钮）
-* 支持iPhone使用，优化移动端使用体验
-* 支持”快速预览“（入口：缩略图栏底部的悬浮按钮、页面右上角的“更多”按钮）
-* 缩略图栏可拖拽改变位置（拖拽顶部的EHUNTER标识）
-* 缩略图栏可改变宽度或高度
-* 图片加载失败时，支持自动换源重试
+### v1.2.10
+- 修复 nhentai 初始化 403：之前为了让页面能滚动，把宿主页面内容整个从渲染树里删掉了，Cloudflare 的验证容器也一起消失，脚本请求因此一直被挑战
+- 移动端改为文档滚动，底部地址栏可以正常收起；顶栏滚动时吸顶，页码固定在右下角
+- 书页模式仍是单屏显示，不受影响
 
-### iPhone / iPad 支持
-* 目前在 iOS 15/iPadOS 15 上可运行油猴脚本/userscript，因此 eHunter 也可在 iPhone / iPad 使用
-* 使用指南: [链接](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_cn.md)
-`,
-    en: `
-### v3.1.0 Notes
-* Added a magnifier feature (Scroll Mode: left-click an image to open; Book Mode: click an image in the center area of the screen to open)
-* Added customizable keyboard shortcuts (entry: More Settings)
-* Fixed drag behavior in "Quick Settings"
+### v1.2.6
+- 超分输出校验改为只在首帧做一次，主线程阻塞减半
+- 切换输出编码不再重建着色器程序
+- 页面菜单的全局监听从「每页一份」改成一份
+- 状态浮层的周期性重算从 7 项降到 2 项`,
+    en: `### v1.2.11
+- Fixed the "what's new" dialog showing old upstream content. When remote notes could not be fetched it fell back to text bundled in the script, and that text was still upstream's old release history
+- Only the last few versions' actual changes are shown now
 
-### v3.0.0 Notes
-* Added image bundle download (entry: the "More" button in the top-right corner)
-* Added iPhone support with improved mobile usability
-* Added "Quick Preview" (entry: floating button at the bottom of the thumbnail bar, and the "More" button in the top-right corner)
-* Thumbnail bar position can now be changed by drag-and-drop (drag the EHUNTER header)
-* Thumbnail bar width/height is now resizable
-* Automatically retries with an alternative source when image loading fails
+### v1.2.10
+- Fixed nhentai failing to initialize with 403: to enable page scrolling, the host page's content had been removed from the render tree entirely, taking Cloudflare's verification container with it, so script requests kept being challenged
+- On mobile the reader now scrolls the document, so the bottom address bar collapses normally; the top bar sticks while scrolling and the page counter stays in the corner
+- Book mode is still a single screen and unaffected
 
-### iPhone / iPad Support
-* Userscripts can run on iOS 15 / iPadOS 15, so eHunter is now available on iPhone and iPad
-* Guide: [Link](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_en.md)
-`,
-    jp: `
-### v3.1.0 リリースノート
-* 拡大鏡機能を追加（スクロールモード: 画像を左クリックで起動、ブックモード: 画面中央エリアの画像をクリックで起動）
-* ショートカットキーのカスタマイズに対応（入口: 「詳細設定」）
-* 「クイック設定」のドラッグ機能を修正
+### v1.2.6
+- The super-resolution output check now runs on the first frame only, halving main-thread blocking
+- Switching output encoding no longer rebuilds shader programs
+- The page menu's global listener went from one per page to one total
+- The stats overlay's periodic recompute dropped from 7 items to 2`,
+    jp: `### v1.2.11
+- 「バージョン更新の説明」が上流の古い内容を表示する問題を修正。リモートの説明を取得できない場合に使う同梱テキストが、上流の古い履歴のままだった
+- 直近数バージョンの実際の変更のみを表示する
 
-### v3.0.0 リリースノート
-* 画像の一括ダウンロードに対応（入口: 右上の「More」ボタン）
-* iPhone での利用に対応し、モバイルでの操作性を改善
-* 「クイックプレビュー」に対応（入口: サムネイルバー下部のフローティングボタン、または右上の「More」ボタン）
-* サムネイルバーの位置をドラッグで変更可能（EHUNTER ヘッダーをドラッグ）
-* サムネイルバーの幅・高さを調整可能
-* 画像の読み込みに失敗した場合、別ソースで自動再試行
+### v1.2.10
+- nhentai の初期化 403 を修正：ページをスクロール可能にするためホストページの内容を描画ツリーから丸ごと外しており、Cloudflare の検証コンテナも消えていたため、スクリプトのリクエストが挑戦され続けていた
+- モバイルは文書スクロールに変更し、下部のアドレスバーが正常に収納される。トップバーはスクロール時に吸着し、ページ番号は右下に固定
+- ブックモードは従来どおり1画面表示で影響なし
 
-### iPhone / iPad 対応
-* iOS 15 / iPadOS 15 では userscript が動作するため、eHunter を iPhone / iPad でも利用できます
-* ガイド: [リンク](https://github.com/hanFengSan/eHunter/blob/master/misc/iphone_ipad_jp.md)
-`,
+### v1.2.6
+- 超解像の出力検証を初回フレームのみに変更し、メインスレッドのブロックを半減
+- 出力エンコードの切り替えでシェーダプログラムを再構築しない
+- ページメニューのグローバルリスナーを「ページごと」から1つに削減
+- ステータスオーバーレイの定期再計算を 7 項目から 2 項目に削減`,
 }
 
 function normalizeLang(inputLang: string): SupportedLang {
