@@ -11,6 +11,7 @@ import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
 import { isChallengeFrame, isCloudflareChallengeDocument } from './platform/cloudflare'
 import { challengeState } from '../core/store/challenge'
+import { LocalFolderAlbumService, pickFolder } from './local/folderService'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -28,6 +29,8 @@ let hadViewportMeta = false
 let viewportAdjusted = false
 // Platform the currently mounted reader was built for.
 let mountedPlatform: Platform | null = null
+/** 「打开本地文件夹」选中的那个 service，Platform.LOCAL 时用它替代网络实现 */
+let pendingLocalService: LocalFolderAlbumService | null = null
 // Incremented every time an artwork load starts. Only the newest load may apply its result
 // to the store — the initial fetch is async, so without this a slow first artwork could
 // finish AFTER a newer one and overwrite the reader with the wrong (older) artwork.
@@ -205,12 +208,14 @@ const ensureMounted = (platform: Platform): HTMLElement => {
         const init = async () => {
           const gen = ++reloadGeneration
           try {
-            if (!hostActionsApplied) {
+            if (!hostActionsApplied && platform !== Platform.LOCAL) {
               applyPlatformHostActions(platform)
               hostActionsApplied = true
             }
 
-            const albumService = createPlatformService(platform)
+            const albumService = platform === Platform.LOCAL && pendingLocalService
+              ? pendingLocalService
+              : createPlatformService(platform)
             app.provide(NameAlbumService, albumService)
             await initializeWithTimeout(albumService, platform)
             // Apply only when no newer load has started: the initial fetch is async, so if
@@ -342,6 +347,11 @@ const closeEHunter = (): void => {
  * album data is refreshed on every call.
  */
 function stopEHunter(): void {
+  // 本地文件夹的图片是 blob 地址，切走后必须释放，否则选过大文件夹会一直占内存
+  if (pendingLocalService) {
+    pendingLocalService.dispose()
+    pendingLocalService = null
+  }
   if (ehunterApp) {
     ehunterApp.unmount()
     ehunterApp = null
@@ -364,6 +374,47 @@ function stopEHunter(): void {
     container.style.visibility = 'hidden'
     container.style.pointerEvents = 'none'
   }
+}
+
+/**
+ * 把本地文件夹当漫画看。
+ *
+ * 浏览器不允许脚本直接按路径读盘，必须由用户用文件选择器选一个目录，
+ * 之后浏览器把里面的 File 对象交给脚本。选中后用文件里的图片构造一个
+ * LocalFolderAlbumService，走和线上作品完全一样的阅读链路（含超分）。
+ */
+async function openLocalFolder(): Promise<void> {
+  const picked = await pickFolder()
+  if (!picked) {
+    return
+  }
+
+  const service = new LocalFolderAlbumService(picked.files, picked.folderName)
+  if (service.getPageCount() === 0) {
+    console.warn('eHunter: 选中的文件夹里没有图片')
+    return
+  }
+
+  // 当前可能正挂载着别的平台，先彻底卸掉再换成本地作品
+  stopEHunter()
+  if (pendingLocalService) {
+    pendingLocalService.dispose()
+  }
+  pendingLocalService = service
+
+  ensureMounted(Platform.LOCAL)
+  openEHunter()
+}
+
+/** 注册脚本管理器菜单项（Tampermonkey 右键图标可见） */
+function registerLocalFolderMenu(): void {
+  const register = (globalThis as any).GM_registerMenuCommand
+  if (typeof register !== 'function') {
+    return
+  }
+  register('📁 打开本地文件夹', () => {
+    void openLocalFolder()
+  })
 }
 
 // Pixiv is a Next.js SPA: clicking another artwork triggers history.pushState + a React
@@ -438,6 +489,9 @@ if (isChallengeFrame()) {
    */
   console.log('eHunter: cloudflare challenge page, leaving it to the user')
 } else {
+  // 菜单入口：选本地文件夹当漫画看，不依赖当前站点
+  registerLocalFolderMenu()
+
   const initialDetection = detectPlatform()
   if (initialDetection.platform) {
     ensureMounted(initialDetection.platform)

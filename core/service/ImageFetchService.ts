@@ -125,6 +125,19 @@ export async function fetchImageBlob(url: string, tag: 'blob' | 'superres' = 'bl
     const report = (ok: boolean, bytes: number, note: string) => {
         reportNet({ channel: tag, url, ms: performance.now() - startedAt, bytes, ok, note })
     }
+    /**
+     * blob:/data: 是本地文件夹那种情况生成的地址，GM_xmlhttpRequest 根本不支持，
+     * 先试一遍只会多一次失败和一条日志，这里直接走 fetch。
+     */
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+        const response = await fetch(url)
+        if (!response.ok) {
+            throw new Error(`HTTP_${response.status}`)
+        }
+        const blob = toImageBlob(new Uint8Array(await response.arrayBuffer()))
+        report(true, blob.size, 'fetch')
+        return blob
+    }
     try {
         const blob = await fetchImageByGM(url)
         report(true, blob.size, 'GM')

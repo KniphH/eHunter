@@ -17,7 +17,9 @@ export enum Platform {
   /** WNACG platform (wnacg.com) */
   WNACG = 'WNACG',
   /** Test platform (localhost, IP addresses) */
-  TEST = 'TEST'
+  TEST = 'TEST',
+  /** 本地文件夹（用户用文件选择器选进来的图片，不走网络） */
+  LOCAL = 'LOCAL'
 }
 
 /**
