@@ -7,6 +7,7 @@
         </div>
         <!-- scroll view -->
         <awesome-scroll-view ref="scrollView" class="scroll-view" v-if="store.imgPageInfos && store.imgPageInfos.length > 0"
+            :document-scroll="documentScroll"
             :on-scroll-stopped="onScrollStopped" @topIn="storeAction.setTopBar(true)" :listen-scroll="true"
             @topLeave="storeAction.setTopBar(false)">
             <h1>{{ store.albumTitle }}</h1>
@@ -29,12 +30,19 @@ import Pagination from './widget/Pagination.vue'
 import PageView from './PageView.vue'
 import { store, storeAction, computedVolIndex, computedVolFirstIndex, computedVolPageIndexList, computedVolumeSum, computedCurVolNo, computedVolPreloadPageIndexList } from '../store/app'
 import { ref, computed, watch, inject, onMounted, nextTick, onUnmounted } from 'vue'
+import { documentScrollActive } from '../../src/mobileRootScroll'
 
 const updater = 'album_scroll_view'
 const animationTime = 800
 const scrollPosition = ref(0)
 const scrollView: any = ref(null)
 const pageContainers: any = ref(null)
+/**
+ * 触屏设备上滚动交给文档（根滚动器），地址栏才会收起。
+ * 两套坐标要分别处理：内部滚动用 offsetTop（相对 offsetParent），
+ * 文档滚动用「元素绝对 Y」。用响应式 ref：组件可能在 enable 之前就建好了。
+ */
+const documentScroll = documentScrollActive
 
 function onScrollStopped(position: number) {
     scrollPosition.value = position
@@ -47,22 +55,35 @@ watch(scrollPosition, () => {
     }
     // sort again, because if changing volume size, it may be out-of-order
     let cons = pageContainers.value.sort((a, b) => a.offsetTop - b.offsetTop)
+    if (!cons) {
+        return
+    }
     let index
-    if (cons) {
-        if (scrollPosition.value !== 0) {
-            // avoiding that in the top, page 1 and page 2 show at the same time, the index is 1
-            const _cons = cons.concat().reverse()
-            let result = cons.indexOf(
-                _cons.find(item => item.offsetTop <= scrollPosition.value + window.innerHeight)
-            );
-            const volIndex = result === -1 ? pageContainers.value.length - 1 : result
-            index = volIndex + computedVolFirstIndex.value
+    if (documentScroll.value) {
+        // 文档滚动：用元素在文档中的绝对 Y 与视口底部比较
+        if (window.scrollY > 0) {
+            const viewportBottom = window.scrollY + window.innerHeight
+            const reversed = cons.concat().reverse()
+            const found = reversed.find((item: HTMLElement) =>
+                item.getBoundingClientRect().top + window.scrollY <= viewportBottom)
+            const result = found ? cons.indexOf(found) : cons.length - 1
+            index = result + computedVolFirstIndex.value
         } else {
             index = computedVolFirstIndex.value
         }
-        if (index !== store.curViewIndex) {
-            storeAction.setCurViewIndex(index, updater)
-        }
+    } else if (scrollPosition.value !== 0) {
+        // avoiding that in the top, page 1 and page 2 show at the same time, the index is 1
+        const _cons = cons.concat().reverse()
+        let result = cons.indexOf(
+            _cons.find(item => item.offsetTop <= scrollPosition.value + window.innerHeight)
+        );
+        const volIndex = result === -1 ? pageContainers.value.length - 1 : result
+        index = volIndex + computedVolFirstIndex.value
+    } else {
+        index = computedVolFirstIndex.value
+    }
+    if (index !== store.curViewIndex) {
+        storeAction.setCurViewIndex(index, updater)
     }
 })
 
@@ -80,10 +101,11 @@ async function scrollToCurIndex() {
         scrollView.value.scrollTo(0, animationTime)
         return
     }
-    scrollView.value.scrollTo(
-        target.offsetTop - 100,
-        animationTime
-    )
+    // 文档滚动要传绝对 Y；内部滚动传相对容器顶部的 offsetTop
+    const offset = documentScroll.value
+        ? target.getBoundingClientRect().top + window.scrollY - 100
+        : target.offsetTop - 100
+    scrollView.value.scrollTo(offset, animationTime)
 }
 
 onMounted(() => {

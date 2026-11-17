@@ -8,11 +8,7 @@ import { detectPlatform } from './platform/detector'
 import { createPlatformService } from './platform/factory'
 import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
-import {
-    disableRootScrollCompanion,
-    enableRootScrollCompanion,
-    installRootScrollBridge,
-} from './mobileRootScroll'
+import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -244,7 +240,7 @@ const ensureMounted = (platform: Platform): HTMLElement => {
           writeEHunterStatus(false)
           restoreEHViewportOnClose()
           document.body.style.overflow = ''
-          disableRootScrollCompanion()
+          disableDocumentScroll()
           const root = document.getElementById(EHUNTER_CONTAINER_ID)
           if (root) {
             root.style.top = '-100%'
@@ -289,14 +285,14 @@ const toggleEHunterView = (show: boolean): void => {
     ? EHUNTER_OPEN_EASING
     : EHUNTER_CLOSE_EASING
   if (show) {
-    // 触屏设备交给「根滚动伴生」处理：body 不能设 overflow:hidden，
-    // 否则根滚动器被降级，底部地址栏永远收不起来。
-    if (!enableRootScrollCompanion()) {
+    // 触屏设备走文档滚动：阅读器回到文档流，根滚动器接管滚动，
+    // 地址栏才会跟着收起。桌面保持原来的 fixed 全屏层。
+    if (!enableDocumentScroll()) {
         document.body.style.overflow = 'hidden'
     }
   } else {
     document.body.style.overflow = ''
-    disableRootScrollCompanion()
+    disableDocumentScroll()
   }
 
   if (show) {
@@ -350,7 +346,7 @@ function stopEHunter(): void {
   store.curViewIndex = 0
 
   document.body.style.overflow = ''
-  disableRootScrollCompanion()
+  disableDocumentScroll()
   restoreEHViewportOnClose()
 
   const container = document.getElementById(EHUNTER_CONTAINER_ID)
@@ -416,9 +412,6 @@ function installSpaNavigationWatcher(): void {
 }
 
 // ---- Initial boot ----
-// 内部滚动同步到根滚动器（移动端地址栏收起用），只注册一次，非移动端一次判断就返回
-installRootScrollBridge()
-
 const initialDetection = detectPlatform()
 if (initialDetection.platform) {
   ensureMounted(initialDetection.platform)

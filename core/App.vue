@@ -102,6 +102,7 @@ onMounted(() => {
 @import './style/_variables';
 @import './style/_markdown';
 @import './style/_normalize';
+@import './style/_doc-scroll';
 
 .ehunter-app {
     font-family: PingFang SC, Microsoft YaHei, 微软雅黑, Arial, Hiragino Sans GB, Heiti SC, Droid Sans,

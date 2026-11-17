@@ -1,0 +1,131 @@
+/**
+ * 移动端「文档滚动」模式。
+ *
+ * 默认布局是 position:fixed 的全屏层 + 内部 .scroll-view 滚动。移动浏览器只给
+ * 根滚动器（document.scrollingElement）地址栏收起 / 状态栏回顶这些原生能力，
+ * 内滚容器一律没有——所以手机上滑到底地址栏也不收。
+ *
+ * 这里把整条高度链从「100% + overflow:hidden + flex 分配」放开，让阅读器回到
+ * 文档流，根滚动器真正接管滚动。只在 JS 判定「触屏」时给 html 加
+ * .ehunter-doc-scroll，桌面与书页模式完全不受影响。
+ *
+ * 用 !important 是因为目标样式大多来自组件 scoped 规则和内联 style。
+ * 注意 DOM 里有两层同名节点：#ehunter-app 是脚本创建的容器，
+ * .ehunter-app 是 App.vue 里的 class，两者都要处理。
+ */
+html.ehunter-doc-scroll {
+    &,
+    body {
+        overflow: visible !important;
+        height: auto !important;
+        // 容器回到文档流后会被 body 默认的 8px 外边距顶下去，出现顶部白边
+        margin: 0 !important;
+    }
+
+    /**
+     * 容器回到文档流后会排在宿主页面原有内容之后（pixiv 一页能有几千像素），
+     * 阅读器就被顶到页面下方去了。阅读器是全屏覆盖，宿主内容本来也看不见，
+     * 这里直接隐藏，让文档高度完全由阅读器决定。
+     * 保留脚本自身的开关按钮、以及 script/style/link/meta 这些不占位的节点。
+     */
+    body>*:not(#ehunter-app):not(#ehunter-switch):not(script):not(style):not(link):not(meta):not(noscript) {
+        display: none !important;
+    }
+
+    // ---- 容器：从 fixed 全屏层回到文档流 ----
+    #ehunter-app {
+        position: relative !important;
+        top: auto !important;
+        height: auto !important;
+        min-height: 100dvh;
+        transform: none !important;
+    }
+
+    // App.vue 那层 height:100% 的 flex 包裹，以及 Vue 挂载容器
+    #ehunter-app > div,
+    #ehunter-app .ehunter-container,
+    .ehunter-app.normalize {
+        height: auto !important;
+        min-height: 0 !important;
+        align-items: stretch !important;
+        // 这几层原本有 absolute 定位，脱离文档流就撑不开高度
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+    }
+
+    // ---- 逐层解除高度约束 ----
+    // 任何一层留 height:100% / flex-basis:0 / absolute，内容高度都传不上去
+    .reader-view {
+        height: auto !important;
+        align-items: stretch !important;
+    }
+
+    .dock-workspace {
+        height: auto !important;
+        overflow: visible !important;
+        align-items: stretch !important;
+    }
+
+    .main-panel {
+        height: auto !important;
+        flex: 1 1 auto !important;
+    }
+
+    // .content / .album-scroll-view 原本 absolute 贴在顶栏下方，这里回到文档流
+    .main-content,
+    .content,
+    .album-scroll-view,
+    .awesome-scroll-view,
+    .scroll-view {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        flex: 0 0 auto !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+    }
+
+    // 顶栏吸顶；原本它靠 fixed 容器定位，现在要自己粘住
+    .main-content > .top-bar {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 20000;
+        flex: 0 0 auto !important;
+    }
+
+    // 书页模式是单屏翻页，本来就不需要文档滚动。直接让它覆盖视口，
+    // 不参与文档流，避免高度在流式布局里反复算不准。
+    // z-index 低于 TopBar（20000），顶栏仍能盖在上面。
+    .book-mode {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        flex: 0 0 auto !important;
+        overflow: hidden !important;
+        z-index: 1;
+    }
+
+    // 右下角的全屏/页码浮层原本 absolute 在容器内，容器变高后会掉到页面底部
+    .reader-view > .status-pannel {
+        position: fixed !important;
+        bottom: 0;
+        right: 0;
+        z-index: 10000;
+    }
+
+    // 侧栏缩略图面板在文档流里会跟着滚，给它自己的滚动兜底
+    .thumb-panel,
+    .thumb-content {
+        height: auto !important;
+        max-height: 100dvh;
+        overflow: auto;
+    }
+}
