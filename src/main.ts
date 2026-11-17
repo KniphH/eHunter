@@ -8,6 +8,11 @@ import { detectPlatform } from './platform/detector'
 import { createPlatformService } from './platform/factory'
 import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
+import {
+    disableRootScrollCompanion,
+    enableRootScrollCompanion,
+    installRootScrollBridge,
+} from './mobileRootScroll'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -239,6 +244,7 @@ const ensureMounted = (platform: Platform): HTMLElement => {
           writeEHunterStatus(false)
           restoreEHViewportOnClose()
           document.body.style.overflow = ''
+          disableRootScrollCompanion()
           const root = document.getElementById(EHUNTER_CONTAINER_ID)
           if (root) {
             root.style.top = '-100%'
@@ -282,7 +288,16 @@ const toggleEHunterView = (show: boolean): void => {
   container.style.transitionTimingFunction = show
     ? EHUNTER_OPEN_EASING
     : EHUNTER_CLOSE_EASING
-  document.body.style.overflow = show ? 'hidden' : ''
+  if (show) {
+    // 触屏设备交给「根滚动伴生」处理：body 不能设 overflow:hidden，
+    // 否则根滚动器被降级，底部地址栏永远收不起来。
+    if (!enableRootScrollCompanion()) {
+        document.body.style.overflow = 'hidden'
+    }
+  } else {
+    document.body.style.overflow = ''
+    disableRootScrollCompanion()
+  }
 
   if (show) {
     ensureEHViewportForOpen()
@@ -335,6 +350,7 @@ function stopEHunter(): void {
   store.curViewIndex = 0
 
   document.body.style.overflow = ''
+  disableRootScrollCompanion()
   restoreEHViewportOnClose()
 
   const container = document.getElementById(EHUNTER_CONTAINER_ID)
@@ -400,6 +416,9 @@ function installSpaNavigationWatcher(): void {
 }
 
 // ---- Initial boot ----
+// 内部滚动同步到根滚动器（移动端地址栏收起用），只注册一次，非移动端一次判断就返回
+installRootScrollBridge()
+
 const initialDetection = detectPlatform()
 if (initialDetection.platform) {
   ensureMounted(initialDetection.platform)
