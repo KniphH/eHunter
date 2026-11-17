@@ -1,9 +1,9 @@
 {
     "cn": {
-        "title": "eHunter Enhanced v1.2.11",
-        "version": "1.2.11",
-        "text": "### v1.2.11\n- 修复「版本更新说明」弹窗显示上游旧内容的问题：远端说明拉不到时会回落到脚本内置文本，那份还停留在上游的历史版本上\n- 现在只展示最近几个版本的真实改动\n\n### v1.2.10\n- 修复 nhentai 初始化 403：之前为了让页面能滚动，把宿主页面内容整个从渲染树里删掉了，Cloudflare 的验证容器也一起消失，脚本请求因此一直被挑战\n- 移动端改为文档滚动，底部地址栏可以正常收起；顶栏滚动时吸顶，页码固定在右下角\n- 书页模式仍是单屏显示，不受影响\n\n### v1.2.6\n- 超分输出校验改为只在首帧做一次，主线程阻塞减半\n- 切换输出编码不再重建着色器程序\n- 页面菜单的全局监听从「每页一份」改成一份\n- 状态浮层的周期性重算从 7 项降到 2 项\n",
-        "time": 1794892899206,
+        "title": "eHunter Enhanced v1.2.7",
+        "version": "1.2.7",
+        "text": "### v1.2.7\n- 移动端改为文档滚动：底部地址栏可以正常收起了，顶栏滚动时吸顶，页码固定在右下角\n- 修复 nhentai 初始化 403：上一版为了让页面能滚动，把宿主页面内容整个从渲染树里删掉了，Cloudflare 的验证容器也一起消失，脚本请求因此一直被挑战\n- 修复「版本更新说明」弹窗显示上游旧内容的问题（远端说明拉不到时会回落到脚本内置文本，那份还停留在上游的历史版本上）\n- 书页模式仍是单屏显示，不受影响\n\n### v1.2.6\n- 超分输出校验改为只在首帧做一次，主线程阻塞减半\n- 切换输出编码不再重建着色器程序\n- 页面菜单的全局监听从「每页一份」改成一份\n- 状态浮层的周期性重算从 7 项降到 2 项\n",
+        "time": 1794893196421,
         "duration": 432000000,
         "always": true,
         "operations": [
@@ -18,10 +18,10 @@
         ]
     },
     "en": {
-        "title": "eHunter Enhanced v1.2.11",
-        "version": "1.2.11",
-        "text": "### v1.2.11\n- Fixed the \"what's new\" dialog showing old upstream content. When remote notes could not be fetched it fell back to text bundled in the script, and that text was still upstream's old release history\n- Only the last few versions' actual changes are shown now\n\n### v1.2.10\n- Fixed nhentai failing to initialize with 403: to enable page scrolling, the host page's content had been removed from the render tree entirely, taking Cloudflare's verification container with it, so script requests kept being challenged\n- On mobile the reader now scrolls the document, so the bottom address bar collapses normally; the top bar sticks while scrolling and the page counter stays in the corner\n- Book mode is still a single screen and unaffected\n\n### v1.2.6\n- The super-resolution output check now runs on the first frame only, halving main-thread blocking\n- Switching output encoding no longer rebuilds shader programs\n- The page menu's global listener went from one per page to one total\n- The stats overlay's periodic recompute dropped from 7 items to 2\n",
-        "time": 1794892899206,
+        "title": "eHunter Enhanced v1.2.7",
+        "version": "1.2.7",
+        "text": "### v1.2.7\n- On mobile the reader now scrolls the document, so the bottom address bar collapses normally; the top bar sticks while scrolling and the page counter stays in the corner\n- Fixed nhentai failing to initialize with 403: to enable page scrolling, the host page's content had been removed from the render tree entirely, taking Cloudflare's verification container with it, so script requests kept being challenged\n- Fixed the \"what's new\" dialog showing old upstream content. When remote notes could not be fetched it fell back to text bundled in the script, and that text was still upstream's old release history\n- Book mode is still a single screen and unaffected\n\n### v1.2.6\n- The super-resolution output check now runs on the first frame only, halving main-thread blocking\n- Switching output encoding no longer rebuilds shader programs\n- The page menu's global listener went from one per page to one total\n- The stats overlay's periodic recompute dropped from 7 items to 2\n",
+        "time": 1794893196421,
         "duration": 432000000,
         "always": true,
         "operations": [
@@ -36,10 +36,10 @@
         ]
     },
     "jp": {
-        "title": "eHunter Enhanced v1.2.11",
-        "version": "1.2.11",
-        "text": "### v1.2.11\n- 「バージョン更新の説明」が上流の古い内容を表示する問題を修正。リモートの説明を取得できない場合に使う同梱テキストが、上流の古い履歴のままだった\n- 直近数バージョンの実際の変更のみを表示する\n\n### v1.2.10\n- nhentai の初期化 403 を修正：ページをスクロール可能にするためホストページの内容を描画ツリーから丸ごと外しており、Cloudflare の検証コンテナも消えていたため、スクリプトのリクエストが挑戦され続けていた\n- モバイルは文書スクロールに変更し、下部のアドレスバーが正常に収納される。トップバーはスクロール時に吸着し、ページ番号は右下に固定\n- ブックモードは従来どおり1画面表示で影響なし\n\n### v1.2.6\n- 超解像の出力検証を初回フレームのみに変更し、メインスレッドのブロックを半減\n- 出力エンコードの切り替えでシェーダプログラムを再構築しない\n- ページメニューのグローバルリスナーを「ページごと」から1つに削減\n- ステータスオーバーレイの定期再計算を 7 項目から 2 項目に削減\n",
-        "time": 1794892899206,
+        "title": "eHunter Enhanced v1.2.7",
+        "version": "1.2.7",
+        "text": "### v1.2.7\n- モバイルは文書スクロールに変更し、下部のアドレスバーが正常に収納される。トップバーはスクロール時に吸着し、ページ番号は右下に固定\n- nhentai の初期化 403 を修正：ページをスクロール可能にするためホストページの内容を描画ツリーから丸ごと外しており、Cloudflare の検証コンテナも消えていたため、スクリプトのリクエストが挑戦され続けていた\n- 「バージョン更新の説明」が上流の古い内容を表示する問題を修正。リモートの説明を取得できない場合に使う同梱テキストが、上流の古い履歴のままだった\n- ブックモードは従来どおり1画面表示で影響なし\n\n### v1.2.6\n- 超解像の出力検証を初回フレームのみに変更し、メインスレッドのブロックを半減\n- 出力エンコードの切り替えでシェーダプログラムを再構築しない\n- ページメニューのグローバルリスナーを「ページごと」から1つに削減\n- ステータスオーバーレイの定期再計算を 7 項目から 2 項目に削減\n",
+        "time": 1794893196421,
         "duration": 432000000,
         "always": true,
         "operations": [
