@@ -17,6 +17,8 @@ import {
   createStepUpdate,
   markCurrentPendingStepFailed
 } from '../../init-steps'
+import { isCloudflareChallengeDocument } from '../../cloudflare'
+import { openCloudflareChallenge } from '../../../../core/store/challenge'
 
 export class NHAlbumServiceImpl implements AlbumService {
   private imgHtmlParser: ImgHtmlParser
@@ -93,6 +95,19 @@ export class NHAlbumServiceImpl implements AlbumService {
     NH_INITIALIZATION_STEPS.forEach(step => {
       this.updateInitializationStep(createStepUpdate(step, 'pending'))
     })
+
+    /**
+     * 整页是 Cloudflare 的验证页时，页面上根本没有 .num-pages / #image-container
+     * 这些结构，继续解析只会抛 `Cannot read properties of null`，用户看到一句
+     * 无从下手的报错。这里先拦下来，把验证界面交给覆盖层（内嵌 iframe），
+     * 用户就地完成验证后页面会自动重载。
+     */
+    if (isCloudflareChallengeDocument()) {
+      openCloudflareChallenge(window.location.href)
+      const reason = 'Blocked by Cloudflare verification. Complete it in the dialog.'
+      this.failCurrentInitializationStep(reason)
+      return new Error(reason)
+    }
 
     try {
       this.pageCount = this.imgHtmlParser.getPageCount()

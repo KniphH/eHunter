@@ -13,6 +13,8 @@ import { IntroHtmlParser } from '../parser/IntroHtmlParser'
 import { ImgUrlListParser } from '../parser/ImgUrlListParser'
 import { TextReq } from '../../base/request/TextReq'
 import type { InitializationStepUpdate } from '../../types'
+import { isCloudflareChallengeDocument } from '../../cloudflare'
+import { openCloudflareChallenge } from '../../../../core/store/challenge'
 import {
   EH_INITIALIZATION_STEPS,
   createStepMap,
@@ -104,6 +106,15 @@ export class EHAlbumServiceImpl implements AlbumService {
     EH_INITIALIZATION_STEPS.forEach(step => {
       this.updateInitializationStep(createStepUpdate(step, 'pending'))
     })
+
+    // 整页是 Cloudflare 验证页时没有站点结构，解析只会抛 null 错误，
+    // 交给覆盖层让用户就地完成验证。
+    if (isCloudflareChallengeDocument()) {
+      openCloudflareChallenge(window.location.href)
+      const reason = 'Blocked by Cloudflare verification. Complete it in the dialog.'
+      this.failCurrentInitializationStep(reason)
+      return new Error(reason)
+    }
 
     try {
       // Parse basic info from current image page

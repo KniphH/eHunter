@@ -9,6 +9,7 @@ import { createPlatformService } from './platform/factory'
 import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
+import { challengeState } from '../core/store/challenge'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -223,13 +224,21 @@ const ensureMounted = (platform: Platform): HTMLElement => {
             isLoading.value = false
           } catch (err) {
             isLoading.value = false
-            error.value = err as InitializationError
+            /**
+             * Cloudflare 验证不是「初始化出错」，而是需要用户点一下。
+             * 这时不设置 error，否则关掉验证覆盖层后会撞上一个红色错误面板。
+             * 验证通过会整页重载，重载后一切正常。
+             */
+            if (!challengeState.active) {
+              error.value = err as InitializationError
+            }
+            const initError = err as InitializationError
             console.error('eHunter initialization failed:', {
-              message: error.value.message,
-              stack: error.value.stack,
-              platform: error.value.platform,
-              url: error.value.url,
-              timestamp: error.value.timestamp
+              message: initError.message,
+              stack: initError.stack,
+              platform: initError.platform,
+              url: initError.url,
+              timestamp: initError.timestamp
             })
           }
         }

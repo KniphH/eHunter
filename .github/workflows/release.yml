@@ -30,10 +30,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 1.2.7 之后那几版是反复试错的中间态，其中两版还会让 nhentai 初始化失败，
-          # 内容已经合并回 1.2.7，这里把它们的 release 和 tag 一起清掉。
-          # 只清理固定列表，不碰其它版本。
-          for v in v1.2.8 v1.2.9 v1.2.10 v1.2.11; do
+          # 1.2.7 之后那几版是反复试错的中间态，内容已经合并回 1.2.7 / 1.2.8，
+          # 这里把它们的 release 和 tag 一起清掉。只清理固定列表，不碰其它版本。
+          for v in v1.2.9 v1.2.10 v1.2.11; do
             if [ "$v" != "$GITHUB_REF_NAME" ]; then
               gh release delete "$v" --yes --cleanup-tag 2>/dev/null && echo "removed $v" || true
             fi
