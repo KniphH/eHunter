@@ -53,7 +53,7 @@ export interface SettingFieldDefinition {
     showInDialog: boolean
     dialogCategory?: SettingsPanelCategory
     dropKey?: 'readingModeList' | 'bookDirection' | 'pageTurnAnimation' | 'langList' | 'superResEncodeList'
-    numKey?: 'widthScale' | 'loadNum' | 'downloadChunkSize' | 'volumeSize' | 'pagesPerScreen' | 'autoFlipFrequency' | 'wheelSensitivity' | 'scrollPageMargin' | 'magnifierZoom' | 'magnifierAreaSize'
+    numKey?: 'widthScale' | 'loadNum' | 'superResLookahead' | 'downloadChunkSize' | 'volumeSize' | 'pagesPerScreen' | 'autoFlipFrequency' | 'wheelSensitivity' | 'scrollPageMargin' | 'magnifierZoom' | 'magnifierAreaSize'
     min?: number
     max?: number
     useAbbrName?: boolean
@@ -267,6 +267,19 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         showInDialog: true,
         dialogCategory: 'general',
         dropKey: 'superResEncodeList',
+    },
+    {
+        id: 'superResLookahead',
+        control: 'num',
+        labelI18nKey: 'superResLookahead',
+        tipI18nKey: 'superResLookaheadTip',
+        modeScope: 'both',
+        showInTopBar: false,
+        showInDialog: true,
+        dialogCategory: 'general',
+        numKey: 'superResLookahead',
+        min: 1,
+        max: 30,
     },
     {
         id: 'magnifierZoom',

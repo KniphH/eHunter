@@ -814,7 +814,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
      * 当前页 0、后面第 k 页 k×10、前面第 1 页 100、窗口外不排队（见 renderQueue）。
      */
     function superResPriorityOf(pageIndex: number): number {
-        return superResPriority(pageIndex, store.curViewIndex)
+        return superResPriority(pageIndex, store.curViewIndex, store.superResLookahead)
     }
 
     /**
@@ -839,7 +839,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             return
         }
         // 不在阅读方向上的页不排队：用户已经翻过去了，真翻回来时会由页面可见性补一次
-        if (!isInSuperResWindow(index, store.curViewIndex)) {
+        if (!isInSuperResWindow(index, store.curViewIndex, store.superResLookahead)) {
             return
         }
         const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index))
@@ -862,7 +862,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
      * 必须在这里补一次，否则这页永远不超分——卷轴模式初始预加载的那几页，
      * 窗口外的部分就是这样被永久漏掉的。
      */
-    const isInSuperResView = computed(() => isInSuperResWindow(index, store.curViewIndex))
+    const isInSuperResView = computed(() => isInSuperResWindow(index, store.curViewIndex, store.superResLookahead))
     watch(isInSuperResView, (inside) => {
         if (!inside || !store.superResEnabled) {
             return
@@ -883,7 +883,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             if (!neighbor || !neighbor.src || neighbor.src === currentSrc || neighbor.displaySrc) {
                 continue
             }
-            if (!isInSuperResWindow(index + offset, store.curViewIndex)) {
+            if (!isInSuperResWindow(index + offset, store.curViewIndex, store.superResLookahead)) {
                 continue
             }
             superResolutionService.prefetch(neighbor.src, superResPriorityOf(index + offset))

@@ -100,4 +100,14 @@ export const superres: Record<string, { cn: string, en: string, jp: string }> = 
         en: 'Move down (runs later)',
         jp: '下へ（後に実行）'
     },
+    superResLookahead: {
+        cn: '超分预加载页数',
+        en: 'Super-res preload pages',
+        jp: '超解像の先読みページ数'
+    },
+    superResLookaheadTip: {
+        cn: '当前页往后提前算几页。越远越靠后算，翻出这个范围会自动丢掉，避免白占显卡',
+        en: 'How many pages ahead to super-resolve. Farther pages are queued later and dropped once you move past the window',
+        jp: '現在のページから何ページ先まで先に処理するか。遠いページは後回しになり、範囲外に出ると破棄される'
+    },
 }

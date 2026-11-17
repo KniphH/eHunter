@@ -1,28 +1,35 @@
 /**
  * 超分渲染队列的调度规则。
  *
- * 一次只算一页（单个 WebGL context），所以问题不是并行，而是**下一张算谁**。
+ * 调度规则：按 priority 取最小，同优先级按入队序号。
  * 纯 FIFO 会让「先入队」赢过「用户正在看」：开启开关时的补跑、翻页时的预取
- * 都是批量入队，当前页往往排在十几个准备页后面。这里改成按 priority 取最小，
- * 同优先级再按入队序号，保证结果稳定。
+ * 都是批量入队，当前页往往排在十几个准备页后面。
+ *
+ * 现在渲染是并发的（多个 worker 各自持一个 WebGL slot），但**顺序规则不变**：
+ * 每次取当前优先级最高的那个，所以并发也不会让远处的页抢在眼前这页前面。
  *
  * priority 越小越先：0 = 当前页，10/20… = 与当前页的距离，DEFAULT_RENDER_PRIORITY 兜底。
  */
 export const DEFAULT_RENDER_PRIORITY = 1000
 
 /**
- * 往后看几页。阅读方向是往后，所以后面的页比「前面那一页」更值得先算。
+ * 往后看几页的默认值。实际值由设置项 superResLookahead 决定，
+ * 阅读方向是往后，所以后面的页比「前面那一页」更值得先算。
  */
 export const SUPER_RES_LOOKAHEAD = 3
 
 /**
- * 排队窗口：当前页前一页 ~ 当前页往后 3 页。
+ * 排队窗口：当前页前一页 ~ 当前页往后 N 页（N 由设置项决定，默认 3）。
  *
  * 用户已经翻过去的前面的页不再排队——它们要么在缓存里，要么翻回去时重新算，
  * 排在队里只会拖慢当前阅读方向。前面只留一页，是为了覆盖「往回翻一页」的情况。
  */
-export function isInSuperResWindow(pageIndex: number, center: number): boolean {
-    return pageIndex >= center - 1 && pageIndex <= center + SUPER_RES_LOOKAHEAD
+export function isInSuperResWindow(
+    pageIndex: number,
+    center: number,
+    lookahead: number = SUPER_RES_LOOKAHEAD,
+): boolean {
+    return pageIndex >= center - 1 && pageIndex <= center + lookahead
 }
 
 /**
@@ -32,8 +39,12 @@ export function isInSuperResWindow(pageIndex: number, center: number): boolean {
  * - 前面第 1 页 = 100（比后面三页都靠后）
  * - 窗口外 = 10000（正常情况下入队前就已被过滤）
  */
-export function superResPriority(pageIndex: number, center: number): number {
-    if (!isInSuperResWindow(pageIndex, center)) {
+export function superResPriority(
+    pageIndex: number,
+    center: number,
+    lookahead: number = SUPER_RES_LOOKAHEAD,
+): number {
+    if (!isInSuperResWindow(pageIndex, center, lookahead)) {
         return 10000
     }
     const delta = pageIndex - center
@@ -49,7 +60,8 @@ export interface RenderJob {
     priority: number
     /** 入队序号，只在同优先级之间决定先后 */
     seq: number
-    run: () => Promise<void>
+    /** workerId 决定用哪个 WebGL slot（见 SuperResolutionService.slots） */
+    run: (workerId: number) => Promise<void>
     /** 被窗口裁掉时调用，让挂起的 promise 结束（不是失败，只是没算） */
     cancel: () => void
 }

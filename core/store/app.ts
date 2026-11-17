@@ -343,6 +343,7 @@ function writeUnifiedSettingsState() {
             readingMode: store.readingMode,
             widthScale: store.widthScale,
             loadNum: store.loadNum,
+            superResLookahead: store.superResLookahead,
             downloadChunkSize: store.downloadChunkSize,
             volumeSize: store.volumeSize,
             showThumbView: store.showThumbView,
@@ -426,6 +427,7 @@ function applyUnifiedSettingsPreference() {
         ['readingMode', 'readingMode'],
         ['widthScale', 'widthScale'],
         ['loadNum', 'loadNum'],
+        ['superResLookahead', 'superResLookahead'],
         ['downloadChunkSize', 'downloadChunkSize'],
         ['volumeSize', 'volumeSize'],
         ['scrollPageMargin', 'scrollPageMargin'],
@@ -592,6 +594,7 @@ export const store = reactive({
     readingMode: 0, // 0: scroll, 1: book
     widthScale: 80, // percent, the scale of img
     loadNum: 3, // the sum of pages per loading
+    superResLookahead: 3, // 超分预加载：当前页往后算几页
     downloadChunkSize: 200,
     volumeSize: 100, // default 10, the page quantity per volume
     showThumbView: responsiveDefaults.showThumbView,
@@ -734,6 +737,12 @@ export const settingConf = {
         list: [40, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
         suffix: '%'
     },
+    superResLookahead: {
+        list: [1, 2, 3, 5, 8, 12, 20],
+        min: 1,
+        max: 30,
+        suffix: ''
+    },
     loadNum: {
         list: [1, 2, 3, 5, 10, 20, 30, 40, 50, 100],
         suffix: 'P'
@@ -837,11 +846,11 @@ function prioritizeSuperResAround(center: number): void {
     // 先裁掉窗口外的排队页：已经翻过去了，留在队里只会拖慢阅读方向
     superResolutionService.retainQueued((url) => {
         const index = indexByUrl.get(url)
-        return index === undefined || isInSuperResWindow(index, center)
+        return index === undefined || isInSuperResWindow(index, center, store.superResLookahead)
     })
     // 再按「后面的页优先、前面只留一页」重排
     indexByUrl.forEach((index, url) => {
-        superResolutionService.prioritize(url, superResPriority(index, center))
+        superResolutionService.prioritize(url, superResPriority(index, center, store.superResLookahead))
     })
 }
 
@@ -972,6 +981,13 @@ export const storeAction = {
     setLoadNum: (val: number) => {
         store.loadNum = val
         persistUnifiedSettingsState()
+    },
+    setSuperResLookahead: (val: number) => {
+        const normalized = Math.max(1, Math.min(30, Math.floor(Number(val) || 3)))
+        store.superResLookahead = normalized
+        persistUnifiedSettingsState()
+        // 改小以后窗口外的已排队页要立刻丢掉，不能等下次翻页
+        prioritizeSuperResAround(store.curViewIndex)
     },
     setDownloadChunkSize: (val: number) => {
         if (!Number.isFinite(val) || val <= 0) {

@@ -75,6 +75,15 @@ interface TextureSlot {
 
 const STORAGE_KEY = 'ehunter_superres_shaders_v1'
 const RESULT_CACHE_LIMIT = 8
+
+/**
+ * 同时渲染几页。
+ *
+ * WebGL 计算本身是串行的，但「取图 → 解码 → GPU → 编码」这条链里取图/解码/编码
+ * 都是异步的，两页并发能让它们互相填补空档，翻页时不用干等上一页算完。
+ * 再往上加收益很小，显存和移动端 GPU 压力反而变大。
+ */
+const RENDER_CONCURRENCY = 2
 /** 排队任务被窗口裁掉时的结束原因：不是失败，不能记进 failed */
 const QUEUE_DROPPED = 'QUEUE_DROPPED'
 const SHADER_SHARED_NAMES = new Set(['MAIN', 'HOOKED'])
@@ -818,7 +827,14 @@ class SuperResolutionService {
     private queuedByUrl = new Map<string, RenderJob>()
     private jobSeq = 0
     private draining = false
-    private slot: RenderSlot | null = null
+    /**
+     * 每个渲染 worker 独占一个 WebGL slot。
+     *
+     * 之前是单例串行：当前页优先级再高，也得等前面那页算完才能开始，
+     * 表现就是「翻到某页后干等很久」。拆成两个 worker 后，一页在编码时
+     * 另一个已经在跑 GPU，翻页时的等待明显缩短。
+     */
+    private slots: Array<RenderSlot | null> = []
     private unsupportedLogged = false
     /** 缓存命中/未命中计数，只给状态浮层看 */
     private hitCount = 0
@@ -894,7 +910,7 @@ class SuperResolutionService {
         // 只在**真的要开算**时记一次未命中。放在前面会把「同一个失败地址被反复调用」
         // 也算进去，命中率被拉成 0%，看着像缓存没用上
         this.missCount++
-        const task = this.enqueue(sourceUrl, priority, () => this.render(sourceUrl))
+        const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId))
             .then((result) => {
                 if (!result) {
                     this.failed.add(sourceUrl)
@@ -1044,11 +1060,7 @@ class SuperResolutionService {
     }
 
     private invalidateSlot(): void {
-        if (!this.slot) {
-            return
-        }
-        this.slot.renderer.dispose()
-        this.slot = null
+        this.releaseSlotAt(-1)
     }
 
     private store(sourceUrl: string, result: SuperResResult): void {
@@ -1069,15 +1081,15 @@ class SuperResolutionService {
         }
     }
 
-    private enqueue<T>(url: string, priority: number, job: () => Promise<T>): Promise<T> {
+    private enqueue<T>(url: string, priority: number, job: (workerId: number) => Promise<T>): Promise<T> {
         return new Promise<T>((resolve, reject) => {
             const entry: RenderJob = {
                 url,
                 priority,
                 seq: this.jobSeq++,
-                run: async () => {
+                run: async (workerId: number) => {
                     try {
-                        resolve(await job())
+                        resolve(await job(workerId))
                     } catch (error) {
                         reject(error)
                     }
@@ -1090,35 +1102,55 @@ class SuperResolutionService {
         })
     }
 
+    /**
+     * 启动若干 worker 共同消费队列。
+     *
+     * 每个 worker 独立取「当前优先级最高的」任务，所以并发不会打乱优先级：
+     * 远处的页永远排在当前页后面，只是不再需要等当前页算完才轮到下一个。
+     */
     private async drain(): Promise<void> {
         if (this.draining) {
             return
         }
         this.draining = true
         try {
-            for (;;) {
-                const job = takeNextJob(this.queue)
-                if (!job) {
-                    break
-                }
-                this.queuedByUrl.delete(job.url)
-                await job.run()
+            const workers = Math.max(1, Math.min(RENDER_CONCURRENCY, this.queue.length))
+            const loops: Array<Promise<void>> = []
+            for (let workerId = 0; workerId < workers; workerId++) {
+                loops.push(this.workerLoop(workerId))
             }
+            await Promise.all(loops)
         } finally {
             this.draining = false
+            // worker 全部退出后可能又有新任务进来（比如正好在退出瞬间入队）
+            if (this.queue.length > 0) {
+                void this.drain()
+            }
         }
     }
 
-    private ensureSlot(): RenderSlot {
+    private async workerLoop(workerId: number): Promise<void> {
+        for (;;) {
+            const job = takeNextJob(this.queue)
+            if (!job) {
+                return
+            }
+            this.queuedByUrl.delete(job.url)
+            await job.run(workerId)
+        }
+    }
+
+    private ensureSlot(workerId = 0): RenderSlot {
         const files = readShaderFiles()
         if (files.length === 0) {
             throw new Error('no_shader_selected')
         }
         const signature = this.getSignature(files)
-        if (this.slot && this.slot.signature === signature) {
-            return this.slot
+        const existing = this.slots[workerId]
+        if (existing && existing.signature === signature) {
+            return existing
         }
-        this.invalidateSlot()
+        this.releaseSlotAt(workerId)
 
         const passes = parseShaderFileTexts(files.map(file => file.text))
         if (passes.length === 0) {
@@ -1149,17 +1181,35 @@ class SuperResolutionService {
         // GPU 上下文丢了以后所有绘制都变成空操作，继续用这个 slot 只会产出空图
         canvas.addEventListener('webglcontextlost', (event) => {
             event.preventDefault()
-            Logger.logText('SUPERRES', 'webgl context lost, slot dropped, will rebuild on next render')
-            this.slot = null
+            Logger.logText('SUPERRES', `webgl context lost (worker ${workerId}), slot dropped, will rebuild on next render`)
+            this.slots[workerId] = null
         })
 
         const renderer = new SuperResRenderer(gl)
-        this.slot = { canvas, renderer, passes, signature }
-        return this.slot
+        const slot: RenderSlot = { canvas, renderer, passes, signature }
+        this.slots[workerId] = slot
+        return slot
     }
 
-    private async render(sourceUrl: string): Promise<SuperResResult | null> {
-        const slot = this.ensureSlot()
+    /** 释放指定 worker 的 slot；传 -1 表示全部 */
+    private releaseSlotAt(workerId: number): void {
+        const targets = workerId < 0
+            ? this.slots.map((_, index) => index)
+            : [workerId]
+        for (const index of targets) {
+            const slot = this.slots[index]
+            if (slot) {
+                slot.renderer.dispose()
+                this.slots[index] = null
+            }
+        }
+        if (workerId < 0) {
+            this.slots = []
+        }
+    }
+
+    private async render(sourceUrl: string, workerId = 0): Promise<SuperResResult | null> {
+        const slot = this.ensureSlot(workerId)
         const startedAt = performance.now()
         const blob = await fetchImageBlob(sourceUrl, 'superres')
         const afterFetch = performance.now()

@@ -27,6 +27,7 @@ export function getFieldValue(id: string): any {
         case 'autoRetryByOtherSource': return store.autoRetryByOtherSource
         case 'superResEnabled': return store.superResEnabled
         case 'superResEncode': return store.superResEncode
+        case 'superResLookahead': return store.superResLookahead
         default: return null
     }
 }
@@ -36,6 +37,7 @@ export function setFieldValue(id: string, val: any): void {
         case 'readingMode': storeAction.setReadingMode(val); break
         case 'widthScale': storeAction.setWidthScale(val); break
         case 'loadNum': storeAction.setLoadNum(val); break
+        case 'superResLookahead': storeAction.setSuperResLookahead(val); break
         case 'downloadChunkSize': storeAction.setDownloadChunkSize(val); break
         case 'volumeSize': storeAction.setVolumeSize(val); break
         case 'showThumbView': if (store.showThumbView !== val) storeAction.toggleShowThumbView(); break
