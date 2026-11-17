@@ -139,9 +139,17 @@ export class NHAlbumServiceImpl implements AlbumService {
         )
       )
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
+      let reason = error instanceof Error ? error.message : String(error)
+      /**
+       * nhentai 前面挂了 Cloudflare。浏览器地址栏那一次能过（它执行了 JS 挑战），
+       * 但脚本发出的请求会被当成「非导航请求」单独挑战，直接回 403 的挑战页。
+       * 光看「403」用户没法判断该怎么办，这里补一句可操作的建议。
+       */
+      if (/\b403\b/.test(reason)) {
+        reason += ' | Blocked by Cloudflare. Try switching network node / turning off VPN, or open this page in the browser once and reload.'
+      }
       this.failCurrentInitializationStep(reason)
-      return error instanceof Error ? error : new Error(String(error))
+      return new Error(reason)
     }
   }
 
