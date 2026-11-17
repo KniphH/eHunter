@@ -10,6 +10,7 @@ import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
 import { isChallengeFrame, isCloudflareChallengeDocument } from './platform/cloudflare'
+import { challengeState } from '../core/store/challenge'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -224,8 +225,14 @@ const ensureMounted = (platform: Platform): HTMLElement => {
             isLoading.value = false
           } catch (err) {
             isLoading.value = false
-            error.value = err as InitializationError
             const initError = err as InitializationError
+            /**
+             * 被 Cloudflare 挑战不算真的初始化失败：验证层会弹出来让用户点一下，
+             * 同时再甩一个红色错误面板只会让人以为插件坏了。
+             */
+            if (!challengeState.active) {
+              error.value = initError
+            }
             console.error('eHunter initialization failed:', {
               message: initError.message,
               stack: initError.stack,

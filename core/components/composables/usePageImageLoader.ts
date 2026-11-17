@@ -63,12 +63,13 @@ const MAX_ASPECT_DEVIATION = 3
 /**
  * 一次会话失败后，隔多久自动再开一轮（秒），依次用完后彻底停下。
  *
- * 重试计划绕两圈就停是为了不放大请求量；但网络抖动、代理线路被掐这类失败
- * 往往几十秒后自己就好了，停住不动只能让用户手动点刷新。
- * 这里按退避节奏再给几次机会，倒计时会显示在失败提示里——是显式的，不是偷偷重试。
+ * 原来是 [10, 30, 90, 300]，第一次就要干等 10 秒，用户反馈"重试太长、
+ * 必须自己点"。改成失败后 1 秒就重试，前几次快速探路，后面才逐步放缓
+ * （总共约半分钟内 6 次机会），既能自动恢复，也不至于对站点猛打。
+ * 倒计时会显示在失败提示里——是显式的，不是偷偷重试。
  * 用户手动点「刷新 / 换源 / 原图」会立即重置这套节奏。
  */
-const AUTO_RETRY_DELAYS = [10, 30, 90, 300]
+const AUTO_RETRY_DELAYS = [1, 1, 2, 3, 5, 8]
 
 export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     const { index, albumService, imgPageInfo, warmMagnifierSource, isActive, getImgElement } = options

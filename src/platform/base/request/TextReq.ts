@@ -8,9 +8,9 @@ export class TextReq {
     private method = 'GET';
     private credentials = 'include';
     private retryTimes = 3;
-    private timeoutTime = 15; // secs
+    private timeoutTime = 12; // secs，固定值，不随重试次数累加
     private curRetryTimes = 0;
-    private retryInterval = 3; // secs
+    private retryInterval = 1; // secs：失败后等 1 秒就重试，不用用户手动点
     private enabledLog = true;
     private fetchSetting = null;
     private noCache = false;
@@ -74,7 +74,8 @@ export class TextReq {
             url = `${url}?_t=${new Date().getTime()}`;
         }
         let timeout = new Promise((resolve, reject) => {
-            setTimeout(reject, this.timeoutTime * 1000 * this.curRetryTimes, 'request timed out');
+            // 超时保持固定：原来会乘以重试次数（15/30/45 秒），一次失败能拖一分半
+            setTimeout(reject, this.timeoutTime * 1000, 'request timed out');
         });
         let req = PlatformService.fetch(url, this.fetchSetting ? this.fetchSetting : {
             method: this.method,
@@ -88,18 +89,23 @@ export class TextReq {
                     return;
                 }
                 /**
-                 * 403 可能是 Cloudflare 的挑战（看漫画途中图片页被要求验证），
-                 * 也可能只是权限拒绝。读一下响应体区分：是挑战页就弹验证层，
-                 * 否则按普通 403 处理。
+                 * 403 可能是 Cloudflare 的挑战，也可能只是权限拒绝。
+                 *
+                 * 注意：挑战页的完整 HTML（"Just a moment..."）只在**导航请求**里出现，
+                 * Cloudflare 对 XHR/子请求经常只回一个空的或极短的 403，光看内容会漏判。
+                 * 所以「内容像挑战页」和「内容为空/极短」都当成挑战处理，
+                 * 只有内容明确是一张正常错误页时才按普通 403 走。
                  */
                 if (res.status === 403) {
                     try {
                         const body = typeof res.text === 'function' ? await res.text() : '';
-                        if (isCloudflareChallengeHtml(body)) {
+                        const text = (body || '').trim();
+                        if (isCloudflareChallengeHtml(text) || text.length < 512) {
                             notifyCloudflareChallenge(url);
                         }
                     } catch {
-                        // 响应体读不出来就退化成普通 403
+                        // 连 body 都读不出来，更可能是挑战（CF 直接断开），按挑战处理
+                        notifyCloudflareChallenge(url);
                     }
                 }
                 throw new Error(`${url}: ${res.status}`);
