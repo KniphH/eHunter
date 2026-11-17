@@ -14,6 +14,23 @@ const CHALLENGE_TITLE_RE = /just a moment|attention required|checking your brows
 const CHALLENGE_TEXT_RE = /verify you are human|checking your browser before accessing|正在进行安全验证|验证您是真人|防护恶意自动程序/i
 const CHALLENGE_SELECTOR = '#challenge-form, #challenge-running, #cf-challenge-running, #challenge-stage, .cf-turnstile, cf-turnstile'
 
+/**
+ * 验证覆盖层里那个 iframe 的 name。
+ *
+ * iframe 加载的是站点自己的地址，@match 会再次命中、再注入一次插件，
+ * 于是「插件里开 iframe、iframe 里又是插件」无限套娃。
+ * 用 window.name 标记，脚本启动时识别并跳过初始化。
+ */
+export const CHALLENGE_FRAME_NAME = 'ehunter-cf-frame'
+
+export function isChallengeFrame(): boolean {
+    try {
+        return window.self !== window.top && window.name === CHALLENGE_FRAME_NAME
+    } catch {
+        return false
+    }
+}
+
 export function isCloudflareChallengeTitle(title: string): boolean {
     return CHALLENGE_TITLE_RE.test(title || '')
 }

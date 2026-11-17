@@ -9,7 +9,7 @@ import { createPlatformService } from './platform/factory'
 import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
-import { challengeState } from '../core/store/challenge'
+import { isChallengeFrame, isCloudflareChallengeDocument } from './platform/cloudflare'
 import PlatformService from './platform/base/service/PlatformService.js'
 import { Platform, type InitializationError } from './platform/types'
 
@@ -224,14 +224,7 @@ const ensureMounted = (platform: Platform): HTMLElement => {
             isLoading.value = false
           } catch (err) {
             isLoading.value = false
-            /**
-             * Cloudflare 验证不是「初始化出错」，而是需要用户点一下。
-             * 这时不设置 error，否则关掉验证覆盖层后会撞上一个红色错误面板。
-             * 验证通过会整页重载，重载后一切正常。
-             */
-            if (!challengeState.active) {
-              error.value = err as InitializationError
-            }
+            error.value = err as InitializationError
             const initError = err as InitializationError
             console.error('eHunter initialization failed:', {
               message: initError.message,
@@ -421,21 +414,39 @@ function installSpaNavigationWatcher(): void {
 }
 
 // ---- Initial boot ----
-const initialDetection = detectPlatform()
-if (initialDetection.platform) {
-  ensureMounted(initialDetection.platform)
-  ;(window as WindowWithEHunterBridge).__EHUNTER_UI__ = {
-    open: openEHunter,
-    close: closeEHunter,
-    toggle: toggleEHunterView
-  }
-  createEhunterSwitch(openEHunter)
-  if (readEHunterStatus()) {
-    openEHunter()
-  }
+if (isChallengeFrame()) {
+  /**
+   * 这个 iframe 是验证覆盖层里用来给用户完成 Cloudflare 验证的。
+   * 它加载的仍是站点的 URL，@match 同样会命中，如果不在这里退出，
+   * iframe 里会再跑一遍插件、再弹一次覆盖层，就是无限套娃。
+   */
+  console.log('eHunter: inside challenge frame, skipping initialization')
+} else if (isCloudflareChallengeDocument()) {
+  /**
+   * 整个页面就是 Cloudflare 的验证页（打开 nh 时最常见）。
+   * 这种情况下页面上本来就有"请验证您是真人"，用户直接点就行；
+   * 插件再弹一层、里面再套一个同样的页面才是多余的。
+   * 所以这里完全不挂载，把页面原样交给用户，验证通过后 Cloudflare
+   * 会整页跳转到真实内容，脚本重新执行时自然就正常了。
+   */
+  console.log('eHunter: cloudflare challenge page, leaving it to the user')
 } else {
-  console.log('eHunter: No platform detected (non-album page), skipping initialization')
-}
+  const initialDetection = detectPlatform()
+  if (initialDetection.platform) {
+    ensureMounted(initialDetection.platform)
+    ;(window as WindowWithEHunterBridge).__EHUNTER_UI__ = {
+      open: openEHunter,
+      close: closeEHunter,
+      toggle: toggleEHunterView
+    }
+    createEhunterSwitch(openEHunter)
+    if (readEHunterStatus()) {
+      openEHunter()
+    }
+  } else {
+    console.log('eHunter: No platform detected (non-album page), skipping initialization')
+  }
 
-// Watch for SPA navigations in all cases so entering/leaving an album page (re)initializes.
-installSpaNavigationWatcher()
+  // Watch for SPA navigations in all cases so entering/leaving an album page (re)initializes.
+  installSpaNavigationWatcher()
+}

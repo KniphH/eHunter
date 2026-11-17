@@ -14,7 +14,6 @@ import { ImgUrlListParser } from '../parser/ImgUrlListParser'
 import { TextReq } from '../../base/request/TextReq'
 import type { InitializationStepUpdate } from '../../types'
 import { isCloudflareChallengeDocument } from '../../cloudflare'
-import { openCloudflareChallenge } from '../../../../core/store/challenge'
 import {
   EH_INITIALIZATION_STEPS,
   createStepMap,
@@ -107,11 +106,10 @@ export class EHAlbumServiceImpl implements AlbumService {
       this.updateInitializationStep(createStepUpdate(step, 'pending'))
     })
 
-    // 整页是 Cloudflare 验证页时没有站点结构，解析只会抛 null 错误，
-    // 交给覆盖层让用户就地完成验证。
+    // 整页是 Cloudflare 验证页时没有站点结构，解析只会抛 null 错误。
+    // main.ts 启动时已会识别整页挑战并跳过挂载，这里是兜底，给一句能看懂的提示。
     if (isCloudflareChallengeDocument()) {
-      openCloudflareChallenge(window.location.href)
-      const reason = 'Blocked by Cloudflare verification. Complete it in the dialog.'
+      const reason = 'Blocked by Cloudflare verification. Verify on the page, then reload.'
       this.failCurrentInitializationStep(reason)
       return new Error(reason)
     }

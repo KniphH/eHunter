@@ -6,8 +6,6 @@
         </div>
         <!-- 常驻挂载：Shift+I 的监听在组件内部，用 v-if 会让浮层关着时收不到按键 -->
         <StatsOverlay />
-        <!-- Cloudflare 验证：检测到挑战页时盖在插件上层，让用户就地完成验证 -->
-        <CloudflareChallenge />
         <!-- <LoadingView style="width: 100%; height: 500px;"/>
         <AwesomeScrollView>
             <div>aaa</div>
@@ -84,7 +82,6 @@ import AlbumBookView from './components/AlbumBookView.vue'
 import ReaderView from './components/ReaderView.vue'
 import StatusNotificationStack from './components/status/StatusNotificationStack.vue'
 import StatsOverlay from './components/StatsOverlay.vue'
-import CloudflareChallenge from './components/CloudflareChallenge.vue'
 import PageView from './components/PageView.vue'
 import { inject, onMounted, ref } from 'vue'
 import { NameAlbumService } from './service/AlbumService'

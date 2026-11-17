@@ -18,7 +18,6 @@ import {
   markCurrentPendingStepFailed
 } from '../../init-steps'
 import { isCloudflareChallengeDocument } from '../../cloudflare'
-import { openCloudflareChallenge } from '../../../../core/store/challenge'
 
 export class NHAlbumServiceImpl implements AlbumService {
   private imgHtmlParser: ImgHtmlParser
@@ -99,12 +98,14 @@ export class NHAlbumServiceImpl implements AlbumService {
     /**
      * 整页是 Cloudflare 的验证页时，页面上根本没有 .num-pages / #image-container
      * 这些结构，继续解析只会抛 `Cannot read properties of null`，用户看到一句
-     * 无从下手的报错。这里先拦下来，把验证界面交给覆盖层（内嵌 iframe），
-     * 用户就地完成验证后页面会自动重载。
+     * 无从下手的报错。
+     *
+     * 正常情况下 main.ts 启动时就已经识别出整页挑战并完全不挂载插件，这里是
+     * 兜底（比如挂载后才被导航到挑战页）：给一句能看懂的提示，让用户完成验证
+     * 后刷新，而不是抛 null。
      */
     if (isCloudflareChallengeDocument()) {
-      openCloudflareChallenge(window.location.href)
-      const reason = 'Blocked by Cloudflare verification. Complete it in the dialog.'
+      const reason = 'Blocked by Cloudflare verification. Verify on the page, then reload.'
       this.failCurrentInitializationStep(reason)
       return new Error(reason)
     }
