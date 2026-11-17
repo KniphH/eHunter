@@ -1,4 +1,6 @@
 // a good resolution for poor network
+import { isCloudflareChallengeHtml } from '../../cloudflare'
+import { notifyCloudflareChallenge } from '../../../../core/store/challenge'
 import PlatformService from '../service/PlatformService'
 
 export class TextReq {
@@ -80,12 +82,27 @@ export class TextReq {
         });
         Promise
             .race([timeout, req])
-            .then(res => {
+            .then(async res => {
                 if (res.status === 200) {
                     successCallback(res);
-                } else {
-                    throw new Error(`${url}: ${res.status}`);
+                    return;
                 }
+                /**
+                 * 403 可能是 Cloudflare 的挑战（看漫画途中图片页被要求验证），
+                 * 也可能只是权限拒绝。读一下响应体区分：是挑战页就弹验证层，
+                 * 否则按普通 403 处理。
+                 */
+                if (res.status === 403) {
+                    try {
+                        const body = typeof res.text === 'function' ? await res.text() : '';
+                        if (isCloudflareChallengeHtml(body)) {
+                            notifyCloudflareChallenge(url);
+                        }
+                    } catch {
+                        // 响应体读不出来就退化成普通 403
+                    }
+                }
+                throw new Error(`${url}: ${res.status}`);
             })
             .catch(err => {
                 this.printErrorLog(err);

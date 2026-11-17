@@ -52,3 +52,17 @@ export function isCloudflareChallengeDocument(doc: Document = document): boolean
     const headText = (doc.body?.innerText || '').slice(0, 1200)
     return CHALLENGE_TEXT_RE.test(headText)
 }
+
+/**
+ * 从响应体判断这是不是 Cloudflare 的挑战页（而不是普通的 403 权限拒绝）。
+ *
+ * 看漫画途中图片页请求被挑战时，服务端回的就是这一整套 HTML，
+ * 只有识别出来才能提示用户去验证，而不是笼统报"加载失败"。
+ */
+export function isCloudflareChallengeHtml(html: string): boolean {
+    if (!html) {
+        return false
+    }
+    const head = html.slice(0, 4000)
+    return /challenge-platform|cf-browser-verification|cf_chl_|Just a moment\.\.\.|正在验证您是否是真人|正在进行安全验证/i.test(head)
+}
