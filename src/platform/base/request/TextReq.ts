@@ -8,7 +8,7 @@ export class TextReq {
     private method = 'GET';
     private credentials = 'include';
     private retryTimes = 3;
-    private timeoutTime = 12; // secs，固定值，不随重试次数累加
+    private timeoutTime = 5; // secs，固定值，不随重试次数累加
     private curRetryTimes = 0;
     private retryInterval = 1; // secs：失败后等 1 秒就重试，不用用户手动点
     private enabledLog = true;
