@@ -115,6 +115,16 @@ export class NHAlbumServiceImpl implements AlbumService {
       this.albumId = this.imgHtmlParser.getAlbumId()
       this.introUrl = this.imgHtmlParser.getIntroUrl()
       this.curPageIndex = this.imgHtmlParser.getCurPageNum() - 1
+      /**
+       * 结构缺失多半是页面停在了 Cloudflare 验证页（没有 .num-pages / .go-back）。
+       * 正常情况下 main.ts 挂载前就会等到结构就绪，这里是兜底：
+       * 给一句能看懂的提示，而不是让后面的解析继续撞 null。
+       */
+      if (this.pageCount <= 0 || !this.introUrl) {
+        const reason = 'Page structure not found. The site is probably showing a verification page — finish it, then reload.'
+        this.failCurrentInitializationStep(reason)
+        return new Error(reason)
+      }
       this.updateInitializationStep(
         createStepUpdate(
           this.initializationStepMap.parseImagePageMetadata,

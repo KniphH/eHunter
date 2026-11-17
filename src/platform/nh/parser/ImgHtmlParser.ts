@@ -10,12 +10,19 @@ export class ImgHtmlParser {
         return this;
     }
 
+    /*
+     * 这几个用安全访问而不是 `!`：页面结构不完整时（比如落在 Cloudflare 挑战页上），
+     * 断言会抛 `Cannot read properties of null`，用户只看到一句莫名其妙的报错。
+     * 返回 0 / 空串，交给 init 判断并给出能看懂的提示。
+     */
     getCurPageNum(): number {
-        return Number(this.html.querySelector('.current')!.textContent);
+        const el = this.html.querySelector('.current');
+        return el ? Number(el.textContent) : 0;
     }
 
     getPageCount(): number {
-        return Number(this.html.querySelector('.num-pages')!.textContent);
+        const el = this.html.querySelector('.num-pages');
+        return el ? Number(el.textContent) : 0;
     }
 
     getImgHeight(): number {
@@ -27,7 +34,8 @@ export class ImgHtmlParser {
     }
 
     getIntroUrl(): string {
-        return this.html.querySelector('.go-back')!.getAttribute('href')!;
+        const el = this.html.querySelector('.go-back');
+        return el ? (el.getAttribute('href') || '') : '';
     }
 
     getAlbumId(): string {

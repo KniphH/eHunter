@@ -10,6 +10,7 @@ import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
 import { isChallengeFrame, isCloudflareChallengeDocument } from './platform/cloudflare'
+import { hasNhentaiPageStructure } from './platform/nh/structure'
 import { challengeState } from '../core/store/challenge'
 import { LocalFolderAlbumService, pickFolder } from './local/folderService'
 import PlatformService from './platform/base/service/PlatformService.js'
@@ -471,6 +472,42 @@ function installSpaNavigationWatcher(): void {
   window.setInterval(onUrlMaybeChanged, 400)
 }
 
+/** 创建容器、挂 UI 桥、按上次状态决定是否自动打开 */
+function mountPlatform(platform: Platform): void {
+  ensureMounted(platform)
+  ;(window as WindowWithEHunterBridge).__EHUNTER_UI__ = {
+    open: openEHunter,
+    close: closeEHunter,
+    toggle: toggleEHunterView
+  }
+  createEhunterSwitch(openEHunter)
+  if (readEHunterStatus()) {
+    openEHunter()
+  }
+}
+
+/**
+ * 等 nhentai 的站点结构出现再挂载。
+ *
+ * 挑战页上这个结构永远不会出现——那是用户完成后整页跳转的事，
+ * 所以超时以后安静退出即可，不要报错：用户此刻正看着验证页。
+ */
+function waitForNhentaiStructure(platform: Platform): void {
+  const startedAt = Date.now()
+  const timer = window.setInterval(() => {
+    if (hasNhentaiPageStructure()) {
+      window.clearInterval(timer)
+      console.log('eHunter: nhentai page structure ready, mounting')
+      mountPlatform(platform)
+      return
+    }
+    if (Date.now() - startedAt > 20000) {
+      window.clearInterval(timer)
+      console.log('eHunter: gave up waiting for nhentai structure (likely a challenge page)')
+    }
+  }, 500)
+}
+
 // ---- Initial boot ----
 if (isChallengeFrame()) {
   /**
@@ -494,15 +531,16 @@ if (isChallengeFrame()) {
 
   const initialDetection = detectPlatform()
   if (initialDetection.platform) {
-    ensureMounted(initialDetection.platform)
-    ;(window as WindowWithEHunterBridge).__EHUNTER_UI__ = {
-      open: openEHunter,
-      close: closeEHunter,
-      toggle: toggleEHunterView
-    }
-    createEhunterSwitch(openEHunter)
-    if (readEHunterStatus()) {
-      openEHunter()
+    if (initialDetection.platform === Platform.NH && !hasNhentaiPageStructure()) {
+      /**
+       * 首次打开 nhentai 时可能先落到 Cloudflare 挑战页：框架在、站点结构不在。
+       * 这时候挂载只会撞解析器的 null 错误。先等着，结构一出现就挂载；
+       * 如果是挑战页，用户完成后 Cloudflare 整页跳转，脚本会重新执行。
+       */
+      console.log('eHunter: nhentai page structure not ready, waiting')
+      waitForNhentaiStructure(initialDetection.platform)
+    } else {
+      mountPlatform(initialDetection.platform)
     }
   } else {
     console.log('eHunter: No platform detected (non-album page), skipping initialization')
