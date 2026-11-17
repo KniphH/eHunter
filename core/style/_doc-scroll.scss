@@ -24,12 +24,21 @@ html.ehunter-doc-scroll {
 
     /**
      * 容器回到文档流后会排在宿主页面原有内容之后（pixiv 一页能有几千像素），
-     * 阅读器就被顶到页面下方去了。阅读器是全屏覆盖，宿主内容本来也看不见，
-     * 这里直接隐藏，让文档高度完全由阅读器决定。
-     * 保留脚本自身的开关按钮、以及 script/style/link/meta 这些不占位的节点。
+     * 阅读器就被顶到页面下方去了。阅读器是全屏覆盖，宿主内容本来也看不见。
+     *
+     * 但**不能**用 display:none 抹掉它们：Cloudflare 的 Turnstile / challenge
+     * 容器就在 body 里，那个容器一旦从渲染树里消失，验证链路就断了，后续脚本
+     * 请求会一直被挑战（nhentai 的 403 就是这么来的）。
+     * 所以这里只把它们移出文档流并不显示，元素本身、内部布局、DOM 结构全保留。
      */
-    body>*:not(#ehunter-app):not(#ehunter-switch):not(script):not(style):not(link):not(meta):not(noscript) {
-        display: none !important;
+    body>*:not(#ehunter-app):not(#ehunter-switch):not(script):not(style):not(link):not(meta):not(noscript):not(iframe) {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        z-index: -1 !important;
     }
 
     // ---- 容器：从 fixed 全屏层回到文档流 ----
