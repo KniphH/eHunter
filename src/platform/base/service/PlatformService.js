@@ -42,6 +42,28 @@ export default {
     },
     fetch(url, option) {
         /* eslint-disable camelcase */
+        /**
+         * 同域请求优先走页面内的 fetch，不用 GM_xmlhttpRequest。
+         *
+         * Cloudflare 会对「不是浏览器亲自发起」的 XHR 持续挑战——哪怕
+         * anonymous: false 带了 cookie、哪怕补上 Sec-Fetch-*（那几个是浏览器
+         * 保留头，脚本写进去也不生效）。表现就是：地址栏能正常打开、页面结构
+         * 也解析得到，唯独插件发的请求一直 403。
+         *
+         * 页面里的 fetch 复用浏览器自己的连接、TLS 指纹和 cookie，与导航请求
+         * 同等待遇，这是唯一能过掉这层判定的方式。跨域请求仍然交给 GM。
+         */
+        const sameOrigin = (() => {
+            try {
+                return new URL(url, location.href).origin === location.origin;
+            } catch {
+                return false;
+            }
+        })();
+        if (sameOrigin && typeof window.fetch === 'function') {
+            return window.fetch(url, { credentials: 'include', ...option });
+        }
+
         if (typeof GM_info !== 'undefined' && GM_info.version) { // the ENV is Tampermonkey
             const send = (headers) => new Promise((resolve, reject) => {
                 GM_xmlhttpRequest({
