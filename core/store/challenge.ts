@@ -68,7 +68,16 @@ async function probeIsChallenge(url: string): Promise<boolean> {
     try {
         const response = await fetch(url, { credentials: 'include', cache: 'no-store' })
         const text = await response.text()
-        return isCloudflareChallengeHtml(text)
+        if (response.status === 200) {
+            // 200 却拿到挑战页：极少见，但也不是没有
+            return isCloudflareChallengeHtml(text)
+        }
+        /*
+         * 非 200 必须算「需要验证」。Cloudflare 对 XHR 的挑战经常只回一个
+         * 403 加空响应体，光看内容会判成「不需要验证」，于是弹层永远不出现、
+         * 图片一直重试一直失败。状态码本身就是信号。
+         */
+        return true
     } catch {
         // fetch 被策略挡住时退回 GM 请求
     }
@@ -82,7 +91,11 @@ async function probeIsChallenge(url: string): Promise<boolean> {
             method: 'GET',
             url,
             timeout: 8000,
-            onload: (res: any) => resolve(isCloudflareChallengeHtml(String(res.responseText || ''))),
+            onload: (res: any) => {
+                const body = String(res.responseText || '')
+                // 同 fetch 分支：非 200 一律按「需要验证」处理
+                resolve(res.status !== 200 || isCloudflareChallengeHtml(body))
+            },
             onerror: () => resolve(false),
             ontimeout: () => resolve(false),
         })
