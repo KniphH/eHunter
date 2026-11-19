@@ -1,6 +1,4 @@
 // a good resolution for poor network
-import { isCloudflareChallengeHtml } from '../../cloudflare'
-import { notifyCloudflareChallenge } from '../../../../core/store/challenge'
 import PlatformService from '../service/PlatformService'
 
 export class TextReq {
@@ -89,25 +87,14 @@ export class TextReq {
                     return;
                 }
                 /**
-                 * 403 可能是 Cloudflare 的挑战，也可能只是权限拒绝。
+                 * 403 就按普通请求失败处理：重试、最后报错。
                  *
-                 * 注意：挑战页的完整 HTML（"Just a moment..."）只在**导航请求**里出现，
-                 * Cloudflare 对 XHR/子请求经常只回一个空的或极短的 403，光看内容会漏判。
-                 * 所以「内容像挑战页」和「内容为空/极短」都当成挑战处理，
-                 * 只有内容明确是一张正常错误页时才按普通 403 走。
+                 * 不再尝试区分「Cloudflare 挑战」并弹验证层——页面正常的时候
+                 * （插件能解析、能显示内容）导航本身是通的，403 只是子请求被挑战，
+                 * 这种情形弹验证既没有用、还会因为判断不准反复误报。
+                 * 页面整个是验证页的那种情况，main.ts 在挂载前就识别并跳过了，
+                 * 用户直接在页面上点验证框即可。
                  */
-                if (res.status === 403) {
-                    try {
-                        const body = typeof res.text === 'function' ? await res.text() : '';
-                        const text = (body || '').trim();
-                        if (isCloudflareChallengeHtml(text) || text.length < 512) {
-                            notifyCloudflareChallenge(url);
-                        }
-                    } catch {
-                        // 连 body 都读不出来，更可能是挑战（CF 直接断开），按挑战处理
-                        notifyCloudflareChallenge(url);
-                    }
-                }
                 throw new Error(`${url}: ${res.status}`);
             })
             .catch(err => {

@@ -8,7 +8,6 @@ import { download } from './download'
 import { superres } from './superres'
 import { magnifier } from './magnifier'
 import { stats } from './stats'
-import { challenge } from './challenge'
 
 /**
  * 全部界面文案。按功能分文件，合并结果与拆分前的单文件版本逐键相同。
@@ -24,7 +23,6 @@ const messages: Record<string, { cn: string, en: string, jp: string }> = {
     ...superres,
     ...magnifier,
     ...stats,
-    ...challenge,
 }
 
 export default messages

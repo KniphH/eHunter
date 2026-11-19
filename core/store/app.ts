@@ -34,7 +34,6 @@ import {
     defaultQuickSettingOrder,
     defaultQuickSettingSelected,
 } from './settingDefinitions'
-import { takeResumeIndex } from './challenge'
 export * from './settingDefinitions'
 
 type PageTurnAnimationMode = 'realistic' | 'slide' | 'none'
@@ -1478,14 +1477,6 @@ export function init(albumService: AlbumService) {
     
     store.albumTitle = albumService.getTitle()
     store.curViewIndex = albumService.getCurPageIndex()
-    /**
-     * 验证通过后是整页重载，翻页并不会写回 URL，所以要靠这里把
-     * 用户原来看到的位置接上（只在上次是「验证后重载」时才有值）。
-     */
-    const resumeIndex = takeResumeIndex()
-    if (resumeIndex !== null && resumeIndex < store.pageCount) {
-        store.curViewIndex = resumeIndex
-    }
     store.pageTurnAnimationMode = readPageTurnAnimationMode()
     applyUnifiedSettingsPreference()
     readerLayoutPreference = readLayoutPreference()

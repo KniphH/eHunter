@@ -10,7 +10,14 @@
  * 2. Cloudflare 的挑战容器（新旧两代 id 都覆盖）
  * 3. 正文开头的提示语（标题被站点改写时的兜底）
  */
-const CHALLENGE_TITLE_RE = /just a moment|attention required|checking your browser|正在进行安全验证|正在验证|安全验证|请稍候/i
+/**
+ * 标题判据必须足够窄。
+ *
+ * 之前写的 `安全验证|请稍候` 太宽——正常作品标题里出现这两个词，就会把页面
+ * 误判成验证页，main.ts 直接不挂载插件，用户什么都看不到。只认 Cloudflare
+ * 固定的那几句。
+ */
+const CHALLENGE_TITLE_RE = /just a moment\.\.\.|attention required!? *\| *cloudflare|checking your browser before accessing|正在进行安全验证|正在验证您是否是真人/i
 const CHALLENGE_TEXT_RE = /verify you are human|checking your browser before accessing|正在进行安全验证|验证您是真人|防护恶意自动程序/i
 /**
  * 挑战页的**结构性标志**（比标题可靠）。
