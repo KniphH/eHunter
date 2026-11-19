@@ -67,44 +67,72 @@ function checkFrame(): void {
         return
     }
     /*
-     * 主判据是**挑战标志物还在不在**，不是标题。
-     * 验证页里一定有一个指向 challenges.cloudflare.com 的 iframe 和一个
-     * name="cf-turnstile-response" 的隐藏 input（见 src/platform/cloudflare.ts
-     * 的 CHALLENGE_SELECTOR）。用户点完勾选后 Cloudflare 整页跳转到真实内容，
-     * 这些节点就没了 —— 那一刻才算通过。
+     * 状态机：必须**先看到过挑战元素**，才把「元素消失」当成验证通过。
+     *
+     * 关键点：验证页是脚本渲染的，iframe 刚加载的那几百毫秒里 Turnstile 的
+     * 节点还没插进来。这时候查不到元素，如果直接判「通过」，弹层会在用户
+     * 还没看到勾选框时就自己关掉——紧接着请求又 403，再弹一次，来回抽风。
      */
-    if (doc.querySelector(CHALLENGE_SELECTOR) || isCloudflareChallengeTitle(doc.title || '')) {
+    const hasChallengeElement = Boolean(doc.querySelector(CHALLENGE_SELECTOR))
+        || isCloudflareChallengeTitle(doc.title || '')
+    if (hasChallengeElement) {
+        sawChallengeElement = true
         return
     }
-    // 标志没了还要有正文，跳过中间的空跳转页
+    if (!sawChallengeElement) {
+        // 还没见过元素：继续等，绝不判通过
+        return
+    }
+    // 见过元素，现在没了 —— 这才是「验证完成」
     if ((doc.body?.innerText || '').length < 120) {
         return
     }
     pass()
 }
 
-/** iframe 主文档加载了几次（子资源加载不会触发这个） */
-let frameLoadCount = 0
+/**
+ * 是否已经看到过挑战元素。
+ *
+ * 只有 true 之后，「元素消失」才意味着验证完成；false 期间查不到元素
+ * 一律当作「还在加载」，不关闭弹层。
+ */
+let sawChallengeElement = false
 
 /**
- * iframe 加载完成的判定。
+ * iframe 每次主文档加载完成（子资源不触发）。
  *
- * 主判据是**加载次数**，不读文档内容：
- * 第一次加载是 Cloudflare 的挑战页；用户点完勾选后，Cloudflare 会把它
- * 跳转回真实页面，于是出现第二次 load。这一刻就可以收工了——
- * 读 contentDocument 在真机上并不可靠（沙箱/跨域一律拿不到，等于永远等不到）。
- *
- * 不能用「加载完 N 秒就收」这种兜底：读不到文档时无从判断是不是挑战页，
- * 一刀切会把还在验证中的用户直接踹出去。只认确定信号——
- * 加载次数到 2，或者能读到标题且已经不是挑战页。
+ * 这里只做一次检测，**不**因为"第二次加载"就判定通过：
+ * 挑战页内部也可能跳转，直接放行同样会误关。是否通过统一交给 checkFrame
+ * 的状态机判断。
  */
 function onFrameLoad(): void {
-    frameLoadCount += 1
-    if (frameLoadCount >= 2) {
-        pass()
-        return
-    }
     checkFrame()
+    scheduleIdleCheck()
+}
+
+/**
+ * 兜底：iframe 加载完 10 秒，如果从头到尾都没出现过挑战元素，
+ * 说明这个地址本来就不需要验证（403 可能只是 XHR 被挑战），
+ * 这时才收起来；出现过元素的情况一律等它消失。
+ */
+function scheduleIdleCheck(): void {
+    window.setTimeout(() => {
+        if (challengeState.passed || challengeState.active === false) {
+            return
+        }
+        if (sawChallengeElement) {
+            return
+        }
+        const frame = frameRef.value
+        try {
+            const doc = frame?.contentDocument
+            if (doc && (doc.body?.innerText || '').length > 120 && !doc.querySelector(CHALLENGE_SELECTOR)) {
+                pass()
+            }
+        } catch {
+            // 读不到就继续挂着，宁可让用户手动关，也不要误判
+        }
+    }, 10000)
 }
 
 function pass(): void {
@@ -120,6 +148,7 @@ function pass(): void {
 function startWatching(): void {
     stopWatching()
     timedOut.value = false
+    sawChallengeElement = false
     pollTimer = window.setInterval(checkFrame, 800)
     timeoutTimer = window.setTimeout(() => {
         timedOut.value = true
