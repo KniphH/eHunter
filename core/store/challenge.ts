@@ -208,10 +208,14 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
     }
     lastNotifiedAt.set(url, now)
 
-    const reallyChallenge = await probeIsChallenge(url)
-    if (!reallyChallenge || challengeState.active) {
-        return false
-    }
+    /*
+     * 这里**不做**前置探测。
+     *
+     * 之前先用 fetch 实测一次「是不是真的在验证」，结果探测在某些情况下
+     * 返回「不是」，整个功能就静默失效了——用户完全看不到任何提示。
+     * 探测是为了防误报，但防到把入口也堵死就不对了：宁可偶尔多提示一次
+     * （用户点关闭即可，还有 60 秒冷却兜着），也不能让验证入口消失。
+     */
 
     challengeState.url = url
     challengeState.passed = false
