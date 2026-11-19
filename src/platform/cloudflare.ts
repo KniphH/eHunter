@@ -12,7 +12,32 @@
  */
 const CHALLENGE_TITLE_RE = /just a moment|attention required|checking your browser|正在进行安全验证|正在验证|安全验证|请稍候/i
 const CHALLENGE_TEXT_RE = /verify you are human|checking your browser before accessing|正在进行安全验证|验证您是真人|防护恶意自动程序/i
-const CHALLENGE_SELECTOR = '#challenge-form, #challenge-running, #cf-challenge-running, #challenge-stage, .cf-turnstile, cf-turnstile'
+/**
+ * 挑战页的**结构性标志**（比标题可靠）。
+ *
+ * Cloudflare 当前的验证页会在正文里塞一个 Turnstile：
+ *   <iframe src="https://challenges.cloudflare.com/cdn-cgi/challenge-platform/...">
+ *   <input type="hidden" name="cf-turnstile-response" id="cf-chl-widget-xxxx">
+ * 验证通过后整页会跳转到真实内容，这些节点随之消失。
+ *
+ * 老版本用的是 #challenge-form / #challenge-running 那几个 id，一并保留。
+ */
+export const CHALLENGE_SELECTOR = [
+    'input[name="cf-turnstile-response"]',
+    '[id^="cf-chl-widget"]',
+    '.cf-turnstile',
+    'cf-turnstile',
+    '#challenge-form',
+    '#challenge-running',
+    '#cf-challenge-running',
+    '#challenge-stage',
+].join(', ')
+
+/**
+ * 注意：**不能**把 `iframe[src*="challenges.cloudflare.com"]` 放进上面这个列表。
+ * 正常页面也可能挂着一个隐形的 challenge-platform iframe（pixiv 上就见过），
+ * 拿它判断会把正常站点误判成挑战页，插件直接不挂载。
+ * 上面这些（Turnstile 的响应 input / widget id / 旧版挑战容器）只在验证页出现。
 
 /**
  * 验证覆盖层里那个 iframe 的 name。

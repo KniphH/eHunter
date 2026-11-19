@@ -28,7 +28,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { i18n } from '../store/i18n'
 import { store } from '../store/app'
 import { challengeState, closeCloudflareChallenge } from '../store/challenge'
-import { CHALLENGE_FRAME_NAME, isCloudflareChallengeTitle } from '../../src/platform/cloudflare'
+import { CHALLENGE_FRAME_NAME, CHALLENGE_SELECTOR, isCloudflareChallengeTitle } from '../../src/platform/cloudflare'
 
 const frameRef = ref<HTMLIFrameElement | null>(null)
 const timedOut = ref(false)
@@ -63,14 +63,21 @@ function checkFrame(): void {
     } catch {
         return
     }
-    if (!doc || !doc.title) {
+    if (!doc) {
         return
     }
-    if (isCloudflareChallengeTitle(doc.title)) {
+    /*
+     * 主判据是**挑战标志物还在不在**，不是标题。
+     * 验证页里一定有一个指向 challenges.cloudflare.com 的 iframe 和一个
+     * name="cf-turnstile-response" 的隐藏 input（见 src/platform/cloudflare.ts
+     * 的 CHALLENGE_SELECTOR）。用户点完勾选后 Cloudflare 整页跳转到真实内容，
+     * 这些节点就没了 —— 那一刻才算通过。
+     */
+    if (doc.querySelector(CHALLENGE_SELECTOR) || isCloudflareChallengeTitle(doc.title || '')) {
         return
     }
-    // 标题变了还要看正文，跳过中间的空跳转页
-    if ((doc.body?.innerText || '').length < 150) {
+    // 标志没了还要有正文，跳过中间的空跳转页
+    if ((doc.body?.innerText || '').length < 120) {
         return
     }
     pass()
