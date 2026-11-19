@@ -27,6 +27,13 @@ const lastNotifiedAt = new Map<string, number>()
 /** 自动弹出的那个标签页（GM_openInTab 的返回值，拿得到 close） */
 let openedTab: { close?: () => void } | null = null
 let probeTimer = 0
+/**
+ * 是否正在探测验证结果。
+ *
+ * 和 challengeState.active 分开：弹窗成功打开时 UI 完全不出现（要的就是
+ * Google 登录那种小窗口浮在页面上，不要遮罩），但探测要继续跑。
+ */
+let probing = false
 
 const PROBE_INTERVAL_MS = 5000
 /** 最多探测这么久就停（5 分钟），避免用户一直不验证时后台反复拉整页 */
@@ -43,6 +50,7 @@ function closeOpenedTab(): void {
 }
 
 function stopProbing(): void {
+    probing = false
     if (probeTimer) {
         window.clearInterval(probeTimer)
         probeTimer = 0
@@ -82,27 +90,56 @@ async function probeIsChallenge(url: string): Promise<boolean> {
 }
 
 /**
- * 自动弹出验证页。
+ * 弹出验证窗口。
  *
- * 优先 GM_openInTab（不受浏览器弹窗拦截，且返回值能拿到 close），
- * 没有就退回 window.open——那种情况下可能被拦，用户得自己点一下。
+ * 要的是「Google 登录那种」独立小窗口：带 width/height 的 window.open 才是
+ * popup，不带尺寸就是新标签页——两者视觉差别很大。
+ *
+ * 不用 GM_openInTab：它只会开标签页。也不用 noopener：那样 window.open 返回
+ * null，就拿不到引用去关窗口了。这里打开的是同域页面，保留引用是安全的。
  */
-function openVerifyTab(url: string): void {
-    const openInTab = (globalThis as any).GM_openInTab
-    if (typeof openInTab === 'function') {
-        try {
-            openedTab = openInTab(url, { active: true, insert: true, setParent: true })
-            return
-        } catch {
-            openedTab = null
-        }
+function openVerifyWindow(url: string): void {
+    const width = 520
+    const height = 700
+    const left = Math.max(0, Math.round((window.screen.width - width) / 2))
+    const top = Math.max(0, Math.round((window.screen.height - height) / 2))
+    const features = [
+        `width=${width}`,
+        `height=${height}`,
+        `left=${left}`,
+        `top=${top}`,
+        'resizable=yes',
+        'scrollbars=yes',
+        'toolbar=no',
+        'menubar=no',
+        'location=no',
+        'status=no',
+        'popup=yes',
+    ].join(',')
+    try {
+        const win = window.open(url, 'ehunter-cf-verify', features)
+        openedTab = win && !win.closed ? { close: () => win.close() } : null
+    } catch {
+        openedTab = null
     }
-    const win = window.open(url, '_blank', 'noopener,width=980,height=760')
-    openedTab = win ? { close: () => win.close() } : null
+}
+
+/** 弹窗是否还能打开（被拦截时返回 null） */
+export function canOpenVerifyWindow(): boolean {
+    return typeof window.open === 'function'
+}
+
+/** 用户点按钮时调用：弹窗口并开始探测 */
+export function startVerifyByUser(): void {
+    openVerifyWindow(challengeState.url)
+    if (openedTab) {
+        challengeState.active = false
+        startProbing(challengeState.url)
+    }
 }
 
 async function tick(): Promise<void> {
-    if (!challengeState.active || challengeState.passed) {
+    if (!probing || challengeState.passed) {
         stopProbing()
         return
     }
@@ -131,6 +168,7 @@ async function tick(): Promise<void> {
 
 function startProbing(url: string): void {
     stopProbing()
+    probing = true
     probeDeadline = Date.now() + PROBE_MAX_MS
     probeDeadline = Date.now() + PROBE_MAX_MS
     probeTimer = window.setInterval(() => {
@@ -162,11 +200,20 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
         return false
     }
 
-    challengeState.active = true
     challengeState.url = url
     challengeState.passed = false
-    openVerifyTab(url)
-    startProbing(url)
+    openVerifyWindow(url)
+    if (openedTab) {
+        /*
+         * 窗口弹出来了：不显示任何遮罩，用户看到的就是那个浮在页面中间的小窗口，
+         * 和 Google 登录一样。这边只管探测，通了就关窗口、重试图片。
+         */
+        challengeState.active = false
+        startProbing(url)
+        return true
+    }
+    // 被浏览器拦了：显示卡片，让用户点按钮手动触发
+    challengeState.active = true
     return true
 }
 

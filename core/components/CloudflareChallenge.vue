@@ -6,10 +6,15 @@
                 <button type="button" class="cf-close" :title="i18n.cfClose" @click="dismiss">×</button>
             </header>
 
-            <p class="cf-hint" :class="{ ok: challengeState.passed }">
-                <template v-if="challengeState.passed">{{ i18n.cfPassed }}</template>
-                <template v-else>{{ i18n.cfHint }}</template>
-            </p>
+            <p class="cf-hint">{{ i18n.cfHint }}</p>
+
+            <div class="cf-body">
+                <button type="button" class="cf-open" @click="start">{{ i18n.cfOpenWindow }}</button>
+                <p class="cf-status" :class="{ ok: challengeState.passed }">
+                    <template v-if="challengeState.passed">{{ i18n.cfPassed }}</template>
+                    <template v-else>{{ i18n.cfWaiting }}</template>
+                </p>
+            </div>
 
             <p class="cf-fallback">{{ i18n.cfFallback }}</p>
         </div>
@@ -18,7 +23,7 @@
 
 <script setup lang="ts">
 import { i18n } from '../store/i18n'
-import { challengeState, dismissChallenge } from '../store/challenge'
+import { challengeState, dismissChallenge, startVerifyByUser } from '../store/challenge'
 
 /**
  * 只做提示，不做交互。
@@ -27,6 +32,10 @@ import { challengeState, dismissChallenge } from '../store/challenge'
  * Cloudflare 的 Turnstile 不允许在 iframe 里完成，只有顶层窗口才有效。
  * 那边验证通过后，这边探测到就自己收起，用户不需要点任何按钮。
  */
+function start(): void {
+    startVerifyByUser()
+}
+
 function dismiss(): void {
     dismissChallenge()
 }
@@ -86,13 +95,41 @@ function dismiss(): void {
 }
 
 .cf-hint {
-    margin: 0 16px;
-    padding: 12px 14px;
+    margin: 0 16px 12px;
     font-size: 13px;
     line-height: 1.6;
-    color: #c8c8cd;
+    color: #b6b6bb;
+}
+
+.cf-body {
+    margin: 0 16px;
+    padding: 14px 16px;
     background: #1b1b1d;
     border-radius: 6px;
+    text-align: center;
+}
+
+.cf-open {
+    width: 100%;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: #3b6ea5;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+
+    &:hover {
+        background: #4680bd;
+    }
+}
+
+.cf-status {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #8a8a90;
 
     &.ok {
         color: #6fbf73;
