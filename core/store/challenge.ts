@@ -146,7 +146,6 @@ export function canOpenVerifyWindow(): boolean {
 export function startVerifyByUser(): void {
     openVerifyWindow(challengeState.url)
     if (openedTab) {
-        challengeState.active = false
         startProbing(challengeState.url)
     }
 }
@@ -219,18 +218,19 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
 
     challengeState.url = url
     challengeState.passed = false
+    /*
+     * 卡片始终显示，不去猜「窗口到底弹出来没有」。
+     *
+     * window.open 在某些情况下会返回一个对象但窗口并不出现（被静默拦下），
+     * 之前据此把 UI 隐藏掉，结果窗口没有、卡片也没有，整个功能看起来不存在。
+     * 现在无条件显示卡片：窗口真出来了它就是背景里的一层提示，
+     * 没出来用户可以直接点上面的按钮。
+     */
+    challengeState.active = true
     openVerifyWindow(url)
     if (openedTab) {
-        /*
-         * 窗口弹出来了：不显示任何遮罩，用户看到的就是那个浮在页面中间的小窗口，
-         * 和 Google 登录一样。这边只管探测，通了就关窗口、重试图片。
-         */
-        challengeState.active = false
         startProbing(url)
-        return true
     }
-    // 被浏览器拦了：显示卡片，让用户点按钮手动触发
-    challengeState.active = true
     return true
 }
 
