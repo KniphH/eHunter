@@ -902,6 +902,19 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         ownBlobUrls.clear()
     })
 
+    /**
+     * Cloudflare 验证通过后会递增这个令牌：把当前正在看、且加载失败的那几页
+     * 立刻重来一次。不刷新整页，因为图片本身就有重试机制，重载反而会再触发验证。
+     */
+    watch(() => store.retryAllToken, () => {
+        if (!isActive()) {
+            return
+        }
+        if (curLoadStatus.value === ImgLoadStatus.Error) {
+            void getNewImgSrc(ImgSrcMode.Default)
+        }
+    })
+
     return {
         curLoadStatus,
         loadingInfo,

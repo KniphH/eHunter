@@ -11,9 +11,9 @@ export const challenge: Record<string, { cn: string, en: string, jp: string }> =
         jp: 'サイトが確認を求めています。下記を完了すると現在の位置から自動的に再読み込みします。'
     },
     cfPassed: {
-        cn: '验证通过，正在恢复阅读位置…',
-        en: 'Passed. Restoring your position…',
-        jp: '確認済み。読んでいた位置に戻ります…'
+        cn: '验证已通过，正在重试加载失败的内容…',
+        en: 'Verification passed. Retrying the failed content…',
+        jp: '確認が完了しました。読み込みに失敗した内容を再試行しています…'
     },
     cfTimeout: {
         cn: '验证似乎没能完成。可以点「在新窗口打开」完成后再回来点重新加载。',
@@ -31,9 +31,9 @@ export const challenge: Record<string, { cn: string, en: string, jp: string }> =
         jp: '新しいウィンドウで開く'
     },
     cfReload: {
-        cn: '重新加载',
-        en: 'Reload',
-        jp: '再読み込み'
+        cn: '手动刷新页面',
+        en: 'Reload page manually',
+        jp: '手動でページを再読み込み'
     },
     cfClose: {
         cn: '关闭',

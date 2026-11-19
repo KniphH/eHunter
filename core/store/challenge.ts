@@ -21,13 +21,30 @@ export const challengeState = reactive({
     passed: false,
 })
 
-export function notifyCloudflareChallenge(url: string): void {
+/** 同一地址多久内不重复弹（毫秒）。防止请求连续失败时反复弹层 */
+const NOTIFY_COOLDOWN_MS = 60_000
+const lastNotifiedAt = new Map<string, number>()
+
+/**
+ * 请求被 Cloudflare 挑战时调用，返回是否真的弹了层。
+ *
+ * 加冷却是因为：一次加载会并发好几个请求，全部 403 的话会同时触发多次，
+ * 叠在一起就是反复弹层、反复打断用户。
+ */
+export function notifyCloudflareChallenge(url: string): boolean {
     if (challengeState.active) {
-        return
+        return false
     }
+    const now = Date.now()
+    const last = lastNotifiedAt.get(url) ?? 0
+    if (now - last < NOTIFY_COOLDOWN_MS) {
+        return false
+    }
+    lastNotifiedAt.set(url, now)
     challengeState.active = true
     challengeState.url = url
     challengeState.passed = false
+    return true
 }
 
 export function closeCloudflareChallenge(): void {

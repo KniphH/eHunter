@@ -31,7 +31,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { i18n } from '../store/i18n'
 import { store } from '../store/app'
-import { challengeState, closeCloudflareChallenge, saveResumeIndex } from '../store/challenge'
+import { challengeState, closeCloudflareChallenge } from '../store/challenge'
 import { CHALLENGE_FRAME_NAME, isCloudflareChallengeTitle } from '../../src/platform/cloudflare'
 
 const frameRef = ref<HTMLIFrameElement | null>(null)
@@ -79,8 +79,8 @@ function checkFrame(): void {
     }
     stopWatching()
     challengeState.passed = true
-    // 给用户看一眼"已验证"，然后带着阅读位置重载
-    window.setTimeout(finish, 700)
+    // 通过后收起弹层，让失败的图片各自重试；不刷新页面
+    window.setTimeout(finish, 600)
 }
 
 function onFrameLoad(): void {
@@ -96,9 +96,15 @@ function startWatching(): void {
     }, 60000)
 }
 
+/**
+ * 验证通过后**不刷新页面**。
+ *
+ * 每个图片页本来就有失败重试机制，这里只要递一个令牌，让失败的那些立刻重来一次。
+ * 刷新整页既没必要，又会在请求仍被拒时再次触发验证层，来回循环直到把站点打成频率限制。
+ */
 function finish(): void {
-    saveResumeIndex(store.curViewIndex)
-    window.location.reload()
+    store.retryAllToken += 1
+    closeCloudflareChallenge()
 }
 
 function dismiss(): void {

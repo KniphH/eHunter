@@ -594,6 +594,8 @@ export const store = reactive({
     readingMode: 0, // 0: scroll, 1: book
     widthScale: 80, // percent, the scale of img
     loadNum: 3, // the sum of pages per loading
+    /** 递增即表示「让失败的页立刻重试一次」，页面各自 watch（Cloudflare 验证通过后用） */
+    retryAllToken: 0,
     superResLookahead: 3, // 超分预加载：当前页往后算几页
     downloadChunkSize: 200,
     volumeSize: 100, // default 10, the page quantity per volume
