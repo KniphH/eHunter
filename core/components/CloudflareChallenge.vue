@@ -18,11 +18,7 @@
                     :src="challengeState.url"
                     @load="onFrameLoad"></iframe>
             </div>
-            <div class="cf-actions">
-                <span class="cf-fallback">{{ i18n.cfFallback }}</span>
-                <button type="button" class="cf-btn" @click="openExternal">{{ i18n.cfOpenExternal }}</button>
-                <button type="button" class="cf-btn primary" @click="finish">{{ i18n.cfReload }}</button>
-            </div>
+            <p class="cf-fallback">{{ i18n.cfFallback }}</p>
         </div>
     </div>
 </template>
@@ -77,14 +73,41 @@ function checkFrame(): void {
     if ((doc.body?.innerText || '').length < 150) {
         return
     }
-    stopWatching()
-    challengeState.passed = true
-    // 通过后收起弹层，让失败的图片各自重试；不刷新页面
-    window.setTimeout(finish, 600)
+    pass()
 }
 
+/** iframe 主文档加载了几次（子资源加载不会触发这个） */
+let frameLoadCount = 0
+
+/**
+ * iframe 加载完成的判定。
+ *
+ * 主判据是**加载次数**，不读文档内容：
+ * 第一次加载是 Cloudflare 的挑战页；用户点完勾选后，Cloudflare 会把它
+ * 跳转回真实页面，于是出现第二次 load。这一刻就可以收工了——
+ * 读 contentDocument 在真机上并不可靠（沙箱/跨域一律拿不到，等于永远等不到）。
+ *
+ * 不能用「加载完 N 秒就收」这种兜底：读不到文档时无从判断是不是挑战页，
+ * 一刀切会把还在验证中的用户直接踹出去。只认确定信号——
+ * 加载次数到 2，或者能读到标题且已经不是挑战页。
+ */
 function onFrameLoad(): void {
+    frameLoadCount += 1
+    if (frameLoadCount >= 2) {
+        pass()
+        return
+    }
     checkFrame()
+}
+
+function pass(): void {
+    if (challengeState.passed) {
+        return
+    }
+    stopWatching()
+    challengeState.passed = true
+    // 收起弹层，让失败的图片各自重试；不刷新页面
+    window.setTimeout(finish, 400)
 }
 
 function startWatching(): void {
@@ -110,10 +133,6 @@ function finish(): void {
 function dismiss(): void {
     stopWatching()
     closeCloudflareChallenge()
-}
-
-function openExternal(): void {
-    window.open(challengeState.url, '_blank', 'noopener')
 }
 
 watch(
@@ -209,45 +228,11 @@ onBeforeUnmount(stopWatching)
     border: none;
 }
 
-.cf-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 12px 16px 16px;
-}
-
 .cf-fallback {
-    flex: 1 1 100%;
-    order: -1;
-    margin-bottom: 2px;
+    margin: 0;
+    padding: 10px 16px 14px;
     font-size: 12px;
     line-height: 1.5;
     color: #8a8a90;
-}
-
-.cf-btn {
-    padding: 7px 14px;
-    font-size: 13px;
-    color: #ddd;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 5px;
-    cursor: pointer;
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.14);
-    }
-
-    &.primary {
-        color: #fff;
-        background: #3b6ea5;
-        border-color: #3b6ea5;
-
-        &:hover {
-            background: #4680bd;
-        }
-    }
 }
 </style>

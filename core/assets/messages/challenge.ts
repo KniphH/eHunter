@@ -21,9 +21,9 @@ export const challenge: Record<string, { cn: string, en: string, jp: string }> =
         jp: '確認が完了しませんでした。「新しいウィンドウで開く」で完了してから再読み込みしてください。'
     },
     cfFallback: {
-        cn: '如果下面一直空白或无法完成，请关闭此窗口，刷新页面后重试。',
-        en: 'If the frame below stays blank, close this dialog and reload the page.',
-        jp: '下記が空白のままの場合は、この画面を閉じてページを再読み込みしてください。'
+        cn: '通常几秒后会自动关闭；如果一直停在这里，点右上角关闭即可，内容会自行重试。',
+        en: 'This usually closes by itself in a few seconds. If it stays, close it — content will retry on its own.',
+        jp: '通常は数秒で自動的に閉じます。閉じない場合は右上の×で閉じてください。内容は自動で再試行されます。'
     },
     cfOpenExternal: {
         cn: '在新窗口打开',
