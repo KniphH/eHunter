@@ -807,6 +807,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             void warmMagnifierSource(imgPageInfo.value.displaySrc || imgPageInfo.value.src)
         }
         void upgradeBySuperResolution()
+        startSuperResRetryIfNeeded()
     }
 
     /**
@@ -863,8 +864,49 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
      * 窗口外的部分就是这样被永久漏掉的。
      */
     const isInSuperResView = computed(() => isInSuperResWindow(index, store.curViewIndex, store.superResLookahead))
+    /**
+     * 停在原地时的超分重试。
+     *
+     * 只靠 isInSuperResView 变化触发是不够的：用户就停在这一页不动，
+     * 一旦这次超分因为网络抖动失败（服务里会短期跳过该地址），
+     * 就再也没有东西把它拉回来——表现就是「这一页等了很久还是原图」。
+     * 所以只要这页在窗口内且还没超分，就定期再试一次。
+     */
+    let superResRetryTimer = 0
+    function clearSuperResRetry(): void {
+        if (superResRetryTimer) {
+            window.clearInterval(superResRetryTimer)
+            superResRetryTimer = 0
+        }
+    }
+
+    /** 这页在窗口内、已加载、但还没超分时，安排一次原地重试 */
+    function startSuperResRetryIfNeeded(): void {
+        clearSuperResRetry()
+        if (!store.superResEnabled || !isInSuperResView.value) {
+            return
+        }
+        if (curLoadStatus.value !== ImgLoadStatus.Loaded) {
+            return
+        }
+        if (!imgPageInfo.value.src || imgPageInfo.value.displaySrc) {
+            return
+        }
+        superResRetryTimer = window.setInterval(() => {
+            if (curLoadStatus.value !== ImgLoadStatus.Loaded) {
+                return
+            }
+            if (!imgPageInfo.value.src || imgPageInfo.value.displaySrc) {
+                clearSuperResRetry()
+                return
+            }
+            void upgradeBySuperResolution()
+        }, 15000)
+    }
+
     watch(isInSuperResView, (inside) => {
         if (!inside || !store.superResEnabled) {
+            clearSuperResRetry()
             return
         }
         if (curLoadStatus.value !== ImgLoadStatus.Loaded) {
@@ -874,6 +916,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             return
         }
         void upgradeBySuperResolution()
+        startSuperResRetryIfNeeded()
     })
 
     /** 当前页算完后预取前后各一页（后一页优先），翻过去时直接命中缓存 */

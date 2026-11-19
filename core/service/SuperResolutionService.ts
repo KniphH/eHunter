@@ -74,7 +74,11 @@ interface TextureSlot {
 }
 
 const STORAGE_KEY = 'ehunter_superres_shaders_v1'
-const RESULT_CACHE_LIMIT = 8
+/** 缓存多少页超分结果。书页模式翻几页就回退，8 页太小，翻回来全是重算 */
+const RESULT_CACHE_LIMIT = 24
+
+/** 失败后多久允许重试。网络抖动、临时超时不该让这一页永久失去超分 */
+const FAILED_RETRY_MS = 15_000
 
 /**
  * 同时渲染几页。
@@ -820,7 +824,14 @@ interface RenderSlot {
 class SuperResolutionService {
     private resultCache = new Map<string, CacheEntry>()
     private pending = new Map<string, Promise<string>>()
-    private failed = new Set<string>()
+    /**
+     * 失败页 + 失败时间。
+     *
+     * 原来是永久黑名单：网络抖一下失败一次，这页就再也不会超分了。
+     * 实测里网络差的站点大量页就是这样被跳过的（66 页只有 21 页成功）。
+     * 现在只在一段时间内跳过，过后允许重试。
+     */
+    private failed = new Map<string, number>()
     /** 待渲染任务，按 priority 出队（见 renderQueue.takeNextJob） */
     private queue: RenderJob[] = []
     /** url → 队列项，用于给已排队的页就地提权，避免重复入队 */
@@ -900,7 +911,8 @@ class SuperResolutionService {
             this.hitCount++
             return cached.result.url
         }
-        if (this.failed.has(sourceUrl)) {
+        const failedAt = this.failed.get(sourceUrl)
+        if (failedAt !== undefined && Date.now() - failedAt < FAILED_RETRY_MS) {
             return sourceUrl
         }
         const inflight = this.pending.get(sourceUrl)
@@ -913,7 +925,7 @@ class SuperResolutionService {
         const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId))
             .then((result) => {
                 if (!result) {
-                    this.failed.add(sourceUrl)
+                    this.failed.set(sourceUrl, Date.now())
                     return sourceUrl
                 }
                 this.store(sourceUrl, result)
@@ -925,7 +937,7 @@ class SuperResolutionService {
                     // 被排队窗口裁掉：不是失败，翻回附近时会重新入队
                     return sourceUrl
                 }
-                this.failed.add(sourceUrl)
+                this.failed.set(sourceUrl, Date.now())
                 Logger.logText('SUPERRES', `failed: ${sourceUrl} ${String(error && (error as Error).message || error)}`)
                 return sourceUrl
             })
