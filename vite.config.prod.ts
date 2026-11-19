@@ -42,6 +42,7 @@ const userscriptBanner = `// ==UserScript==
 // @grant        GM_xmlhttpRequest
 // @grant        GM_download
 // @grant        GM_registerMenuCommand
+// @grant        GM_openInTab
 // @license      MIT
 // ==/UserScript==`
 

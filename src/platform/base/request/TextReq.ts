@@ -1,5 +1,6 @@
 // a good resolution for poor network
 import PlatformService from '../service/PlatformService'
+import { notifyCloudflareChallenge } from '../../../../core/store/challenge'
 
 export class TextReq {
     private url: string;
@@ -87,14 +88,13 @@ export class TextReq {
                     return;
                 }
                 /**
-                 * 403 就按普通请求失败处理：重试、最后报错。
-                 *
-                 * 不再尝试区分「Cloudflare 挑战」并弹验证层——页面正常的时候
-                 * （插件能解析、能显示内容）导航本身是通的，403 只是子请求被挑战，
-                 * 这种情形弹验证既没有用、还会因为判断不准反复误报。
-                 * 页面整个是验证页的那种情况，main.ts 在挂载前就识别并跳过了，
-                 * 用户直接在页面上点验证框即可。
+                 * 403 有可能是 Cloudflare 挑战。交给 notifyCloudflareChallenge 判断：
+                 * 它会先实测一次目标地址，只有确认仍是挑战页才弹出验证标签，
+                 * 否则当作普通请求失败，继续走重试。
                  */
+                if (res.status === 403) {
+                    void notifyCloudflareChallenge(url);
+                }
                 throw new Error(`${url}: ${res.status}`);
             })
             .catch(err => {

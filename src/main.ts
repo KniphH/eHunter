@@ -10,6 +10,7 @@ import { initializeWithTimeout } from './platform/initializer'
 import { applyPlatformHostActions } from './platform/hostActions'
 import { disableDocumentScroll, enableDocumentScroll } from './mobileRootScroll'
 import { isChallengeFrame, isCloudflareChallengeDocument } from './platform/cloudflare'
+import { challengeState } from '../core/store/challenge'
 import { hasNhentaiPageStructure } from './platform/nh/structure'
 import { LocalFolderAlbumService, pickFolder } from './local/folderService'
 import PlatformService from './platform/base/service/PlatformService.js'
@@ -231,7 +232,10 @@ const ensureMounted = (platform: Platform): HTMLElement => {
           } catch (err) {
             isLoading.value = false
             const initError = err as InitializationError
-            error.value = initError
+            // 正在走验证流程时不甩红色错误面板，弹层里的提示已经说明情况
+            if (!challengeState.active) {
+              error.value = initError
+            }
             console.error('eHunter initialization failed:', {
               message: initError.message,
               stack: initError.stack,
