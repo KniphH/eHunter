@@ -1444,10 +1444,16 @@ export const storeAction = {
         return store.imgPageInfos[val]
     },
     getImgPageHeightOfWidth: (val: number) => {
-        let info = storeAction.getImgPageInfo(val)
-        if (info.preciseHeightOfWidth) {
-            return info.preciseHeightOfWidth
-        }
+        const info = storeAction.getImgPageInfo(val)
+        /**
+         * 卷轴模式下只用入队时的比例，不换成图片解码后的精确值。
+         *
+         * 这个函数的返回值直接决定 .page-container 的 padding-bottom，也就是它占的高度。
+         * 一旦图片加载完把高度改掉，下面所有页都会整体位移——用户滚到接近底部时，
+         * 新进视口的图一加载完，画面就「跳一下」，看起来像内容从底下冒出来。
+         * EH / NH 的比例本来就取自缩略图，是准的；用图片自身尺寸居中显示，
+         * 比例有极小偏差时留一点白，比整页跳动好得多。
+         */
         return info.heightOfWidth
     },
 }

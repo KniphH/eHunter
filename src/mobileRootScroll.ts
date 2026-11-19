@@ -26,6 +26,8 @@ const DOC_SCROLL_CLASS = 'ehunter-doc-scroll'
 
 let saved: SavedInlineStyle[] = []
 let savedScrollY = 0
+let savedBodyMinHeight = ''
+let heightObserver: ResizeObserver | null = null
 
 /**
  * 必须是响应式的：ReaderView / AlbumScrollView 在 enableDocumentScroll() 之前
@@ -69,9 +71,39 @@ export function enableDocumentScroll(): boolean {
     body.style.height = ''
 
     document.documentElement.classList.add(DOC_SCROLL_CLASS)
+
+    /*
+     * 容器是绝对定位（钉在文档顶部，见 _doc-scroll.scss），本身不撑开 body。
+     * 必须把 body 的最小高度同步成阅读器高度，否则根滚动器没有可滚空间，
+     * 地址栏照样收不起来、也滚不到最后几页。
+     *
+     * 用 ResizeObserver 而不是只设一次：图片陆续加载、切换排版都会改变高度。
+     */
+    savedBodyMinHeight = body.style.minHeight
+    syncBodyHeight()
+    if (typeof ResizeObserver === 'function') {
+        heightObserver = new ResizeObserver(syncBodyHeight)
+        const app = document.getElementById('ehunter-app')
+        if (app) {
+            heightObserver.observe(app)
+        }
+    }
+
     // 打开时从顶部开始，避免继承宿主页面的滚动位置
     window.scrollTo(0, 0)
     return true
+}
+
+/** 让 body 至少和阅读器一样高，根滚动器才有可滚内容 */
+function syncBodyHeight(): void {
+    const app = document.getElementById('ehunter-app')
+    if (!app) {
+        return
+    }
+    const height = Math.ceil(app.getBoundingClientRect().height)
+    if (height > 0 && document.body.style.minHeight !== `${height}px`) {
+        document.body.style.minHeight = `${height}px`
+    }
 }
 
 export function disableDocumentScroll(): void {
@@ -80,6 +112,12 @@ export function disableDocumentScroll(): void {
     }
     documentScrollActive.value = false
     document.documentElement.classList.remove(DOC_SCROLL_CLASS)
+    if (heightObserver) {
+        heightObserver.disconnect()
+        heightObserver = null
+    }
+    document.body.style.minHeight = savedBodyMinHeight
+    savedBodyMinHeight = ''
     for (const item of saved) {
         item.element.style.overflow = item.overflow
         item.element.style.height = item.height
