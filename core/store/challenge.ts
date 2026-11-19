@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { isCloudflareChallengeHtml } from '../../src/platform/cloudflare'
+import { isCloudflareChallengeHtml, isCloudflareChallengeTitle } from '../../src/platform/cloudflare'
 import { store } from './app'
 
 /**
@@ -24,8 +24,8 @@ export const challengeState = reactive({
 const NOTIFY_COOLDOWN_MS = 60_000
 const lastNotifiedAt = new Map<string, number>()
 
-/** 自动弹出的那个标签页（GM_openInTab 的返回值，拿得到 close） */
-let openedTab: { close?: () => void } | null = null
+/** 弹出的验证窗口（保留引用才能读它的页面状态、才能关掉它） */
+let verifyWindow: Window | null = null
 let probeTimer = 0
 /**
  * 是否正在探测验证结果。
@@ -35,18 +35,20 @@ let probeTimer = 0
  */
 let probing = false
 
-const PROBE_INTERVAL_MS = 5000
+const PROBE_INTERVAL_MS = 2000
+/** 窗口打开后多久才开始判定（给它的页面留加载时间） */
+let probeStartAt = 0
 /** 最多探测这么久就停（5 分钟），避免用户一直不验证时后台反复拉整页 */
 const PROBE_MAX_MS = 5 * 60 * 1000
 let probeDeadline = 0
 
-function closeOpenedTab(): void {
+function closeVerifyWindow(): void {
     try {
-        openedTab?.close?.()
+        verifyWindow?.close()
     } catch {
         // 用户可能已经手动关了
     }
-    openedTab = null
+    verifyWindow = null
 }
 
 function stopProbing(): void {
@@ -111,7 +113,20 @@ async function probeIsChallenge(url: string): Promise<boolean> {
  * 不用 GM_openInTab：它只会开标签页。也不用 noopener：那样 window.open 返回
  * null，就拿不到引用去关窗口了。这里打开的是同域页面，保留引用是安全的。
  */
-function openVerifyWindow(url: string): void {
+function openVerifyWindow(): void {
+    /*
+     * 打开站点**首页**，不是被挑战的那个地址。
+     *
+     * 验证针对的是域名级的 cookie（cf_clearance），首页和具体页是同一套。
+     * 而打开具体页有两个坏处：那正是插件正在请求、可能被拒的地址；
+     * 而且用户本来就在那一页，原页面自己会重试，不需要再开一个。
+     */
+    let target = location.origin
+    try {
+        target = new URL('/', location.origin).href
+    } catch {
+        // 保持 location.origin
+    }
     const width = 520
     const height = 700
     const left = Math.max(0, Math.round((window.screen.width - width) / 2))
@@ -130,10 +145,10 @@ function openVerifyWindow(url: string): void {
         'popup=yes',
     ].join(',')
     try {
-        const win = window.open(url, 'ehunter-cf-verify', features)
-        openedTab = win && !win.closed ? { close: () => win.close() } : null
+        const win = window.open(target, 'ehunter-cf-verify', features)
+        verifyWindow = win && !win.closed ? win : null
     } catch {
-        openedTab = null
+        verifyWindow = null
     }
 }
 
@@ -144,9 +159,36 @@ export function canOpenVerifyWindow(): boolean {
 
 /** 用户点按钮时调用：弹窗口并开始探测 */
 export function startVerifyByUser(): void {
-    openVerifyWindow(challengeState.url)
-    if (openedTab) {
+    openVerifyWindow()
+    if (verifyWindow) {
         startProbing(challengeState.url)
+    }
+}
+
+/**
+ * 验证窗口里是不是已经不是挑战页了。
+ *
+ * 判据取窗口自己的 document.title —— 同域可读，而且那是**顶层导航**，
+ * 不会被 Cloudflare 当成 XHR 挑战。之前用 fetch 探测目标地址，那个 fetch
+ * 本身也 403，永远判"没通过"，窗口就永远不关。
+ */
+function verifyWindowPassed(): boolean {
+    if (!verifyWindow || verifyWindow.closed) {
+        return false
+    }
+    try {
+        const doc = verifyWindow.document
+        if (!doc) {
+            return false
+        }
+        const title = doc.title || ''
+        if (!title) {
+            return false
+        }
+        return !isCloudflareChallengeTitle(title)
+    } catch {
+        // 读不到就当还没通过，继续等
+        return false
     }
 }
 
@@ -155,21 +197,30 @@ async function tick(): Promise<void> {
         stopProbing()
         return
     }
-    if (Date.now() > probeDeadline) {
-        stopProbing()
+    if (Date.now() < probeStartAt) {
         return
     }
     if (Date.now() > probeDeadline) {
         stopProbing()
         return
     }
-    const stillChallenge = await probeIsChallenge(challengeState.url)
-    if (stillChallenge) {
+
+    // 用户自己把窗口关了：停止等待，不再折腾
+    if (verifyWindow && verifyWindow.closed) {
+        stopProbing()
+        closeChallenge()
+        return
+    }
+
+    const passed = verifyWindow
+        ? verifyWindowPassed()
+        : !(await probeIsChallenge(challengeState.url))
+    if (!passed) {
         return
     }
     stopProbing()
     challengeState.passed = true
-    closeOpenedTab()
+    closeVerifyWindow()
     // 让失败的那些图片立刻重来一次；不刷新页面
     store.retryAllToken += 1
     // 稍等一下让用户看清"已验证"，再收起弹层
@@ -181,7 +232,8 @@ async function tick(): Promise<void> {
 function startProbing(url: string): void {
     stopProbing()
     probing = true
-    probeDeadline = Date.now() + PROBE_MAX_MS
+    // 先给窗口几秒把自己的页面加载出来，避免刚打开就把空白页判成"已通过"
+    probeStartAt = Date.now() + 3000
     probeDeadline = Date.now() + PROBE_MAX_MS
     probeTimer = window.setInterval(() => {
         void tick()
@@ -227,8 +279,8 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
      * 没出来用户可以直接点上面的按钮。
      */
     challengeState.active = true
-    openVerifyWindow(url)
-    if (openedTab) {
+    openVerifyWindow()
+    if (verifyWindow) {
         startProbing(url)
     }
     return true

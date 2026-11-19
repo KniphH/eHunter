@@ -89,6 +89,27 @@ export class NHAlbumServiceImpl implements AlbumService {
     )
   }
 
+  /**
+   * 等页面结构真正就绪（页数是正数、能拿到 intro 地址）。
+   *
+   * 用当前 DOM 重新构造解析器而不是复用构造时那份快照——快照拍早了就是
+   * 那个只有壳的页面。最多等约 4 秒，超时后照常走后面的兜底报错。
+   */
+  private async waitForPageStructure(maxTries = 5): Promise<void> {
+    for (let i = 0; i < maxTries; i++) {
+      if (this.pageCount > 0 && this.introUrl) {
+        return
+      }
+      const html = document.documentElement.outerHTML
+      const parser = new ImgHtmlParser(html)
+      if (parser.getPageCount() > 0 && parser.getIntroUrl()) {
+        this.imgHtmlParser = parser
+        return
+      }
+      await new Promise(resolve => setTimeout(resolve, 800))
+    }
+  }
+
   async init(): Promise<Error | void> {
     this.initializationStepStatus = {}
     NH_INITIALIZATION_STEPS.forEach(step => {
@@ -109,6 +130,13 @@ export class NHAlbumServiceImpl implements AlbumService {
       this.failCurrentInitializationStep(reason)
       return new Error(reason)
     }
+
+    /*
+     * 首次打开时页面有可能只渲染了一半：`.num-pages` 的壳在、里面还没填数字。
+     * 这时直接解析会得到 0 页并报「结构缺失」，用户只能刷新一次才正常。
+     * 先等一会儿、重新抓一份 DOM 再解析，通常一两百毫秒内就好了。
+     */
+    await this.waitForPageStructure()
 
     try {
       this.pageCount = this.imgHtmlParser.getPageCount()
