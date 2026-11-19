@@ -5,19 +5,20 @@
                 <h3>{{ i18n.cfTitle }}</h3>
                 <button type="button" class="cf-close" :title="i18n.cfClose" @click="dismiss">×</button>
             </header>
-            <p class="cf-hint">
-                <template v-if="challengeState.passed">{{ i18n.cfPassed }}</template>
-                <template v-else-if="timedOut">{{ i18n.cfTimeout }}</template>
-                <template v-else>{{ i18n.cfHint }}</template>
-            </p>
-            <div class="cf-frame-wrap">
-                <iframe
-                    ref="frameRef"
-                    :name="CHALLENGE_FRAME_NAME"
-                    class="cf-frame"
-                    :src="challengeState.url"
-                    @load="onFrameLoad"></iframe>
+
+            <p class="cf-hint">{{ i18n.cfHint }}</p>
+
+            <div class="cf-body">
+                <button type="button" class="cf-open" @click="openVerifyPage">
+                    {{ i18n.cfOpenExternal }}
+                </button>
+                <p class="cf-status" :class="{ ok: passed }">
+                    <template v-if="passed">{{ i18n.cfPassed }}</template>
+                    <template v-else-if="sawResult">{{ i18n.cfPollHint }}</template>
+                    <template v-else>{{ i18n.cfWaiting }}</template>
+                </p>
             </div>
+
             <p class="cf-fallback">{{ i18n.cfFallback }}</p>
         </div>
     </div>
@@ -28,146 +29,130 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { i18n } from '../store/i18n'
 import { store } from '../store/app'
 import { challengeState, closeCloudflareChallenge } from '../store/challenge'
-import { CHALLENGE_FRAME_NAME, CHALLENGE_SELECTOR, isCloudflareChallengeTitle } from '../../src/platform/cloudflare'
-
-const frameRef = ref<HTMLIFrameElement | null>(null)
-const timedOut = ref(false)
-
-let pollTimer = 0
-let timeoutTimer = 0
-
-function stopWatching(): void {
-    if (pollTimer) {
-        window.clearInterval(pollTimer)
-        pollTimer = 0
-    }
-    if (timeoutTimer) {
-        window.clearTimeout(timeoutTimer)
-        timeoutTimer = 0
-    }
-}
+import { isCloudflareChallengeHtml } from '../../src/platform/cloudflare'
 
 /**
- * iframe 与主页面同源，可以直接读 contentDocument。
- * 挑战页标题是 "Just a moment..."，用户在 iframe 里点完勾选后 Cloudflare
- * 会把它重定向到真实页面，标题变了就说明通过了。
- */
-function checkFrame(): void {
-    const frame = frameRef.value
-    if (!frame || challengeState.passed) {
-        return
-    }
-    let doc: Document | null = null
-    try {
-        doc = frame.contentDocument
-    } catch {
-        return
-    }
-    if (!doc) {
-        return
-    }
-    /*
-     * 状态机：必须**先看到过挑战元素**，才把「元素消失」当成验证通过。
-     *
-     * 关键点：验证页是脚本渲染的，iframe 刚加载的那几百毫秒里 Turnstile 的
-     * 节点还没插进来。这时候查不到元素，如果直接判「通过」，弹层会在用户
-     * 还没看到勾选框时就自己关掉——紧接着请求又 403，再弹一次，来回抽风。
-     */
-    const hasChallengeElement = Boolean(doc.querySelector(CHALLENGE_SELECTOR))
-        || isCloudflareChallengeTitle(doc.title || '')
-    if (hasChallengeElement) {
-        sawChallengeElement = true
-        return
-    }
-    if (!sawChallengeElement) {
-        // 还没见过元素：继续等，绝不判通过
-        return
-    }
-    // 见过元素，现在没了 —— 这才是「验证完成」
-    if ((doc.body?.innerText || '').length < 120) {
-        return
-    }
-    pass()
-}
-
-/**
- * 是否已经看到过挑战元素。
+ * 为什么不在弹层里直接嵌 iframe 让用户验证：
  *
- * 只有 true 之后，「元素消失」才意味着验证完成；false 期间查不到元素
- * 一律当作「还在加载」，不关闭弹层。
- */
-let sawChallengeElement = false
-
-/**
- * iframe 每次主文档加载完成（子资源不触发）。
+ * Cloudflare 的 Turnstile 会检查自己是不是被嵌在别人页面里（top !== self），
+ * 在 iframe 里勾选只会失败、重载回挑战页——实测永远验证不过，只有顶层窗口
+ * 里的验证才会真正通过并写下 cf_clearance。
  *
- * 这里只做一次检测，**不**因为"第二次加载"就判定通过：
- * 挑战页内部也可能跳转，直接放行同样会误关。是否通过统一交给 checkFrame
- * 的状态机判断。
+ * 所以这里改成：按钮开一个新标签让用户验证，弹层留在原地，定时探测目标地址
+ * 是否已经能正常返回，通了就自动收起并让失败的图片重试。
  */
-function onFrameLoad(): void {
-    checkFrame()
-    scheduleIdleCheck()
+
+const passed = ref(false)
+/** 已经探测过至少一次，用来区分「刚开始」和「一直在等」 */
+const sawResult = ref(false)
+
+let probeTimer = 0
+let probeDeadline = 0
+/**
+ * 探测真正开始判定的时间。
+ *
+ * 用户在弹层里什么都不做时不该探测：GM 请求和浏览器的请求特征不同，Cloudflare
+ * 可能压根不挑战它，一探就是 200，弹层会立刻自己关掉、接着又被 403 重开。
+ * 所以只有点了「打开验证页面」之后才开始，并且先留几秒给用户在新标签里操作。
+ */
+let probeStartAt = 0
+
+const PROBE_INTERVAL_MS = 3000
+/** 最多探测这么久就停（5 分钟），避免长期挂着打请求 */
+const PROBE_MAX_MS = 5 * 60 * 1000
+
+function stopProbing(): void {
+    if (probeTimer) {
+        window.clearInterval(probeTimer)
+        probeTimer = 0
+    }
 }
 
 /**
- * 兜底：iframe 加载完 10 秒，如果从头到尾都没出现过挑战元素，
- * 说明这个地址本来就不需要验证（403 可能只是 XHR 被挑战），
- * 这时才收起来；出现过元素的情况一律等它消失。
+ * 探一下目标地址现在能不能正常打开。
+ *
+ * 用户在新标签完成验证后，cf_clearance 写在同一个域名下，这边再请求拿到的
+ * 就不是挑战页了。用 GM 请求而不是 fetch：能拿到完整响应体判断，也不受页面
+ * 跨域策略影响。
  */
-function scheduleIdleCheck(): void {
-    window.setTimeout(() => {
-        if (challengeState.passed || challengeState.active === false) {
+function probe(): Promise<boolean> {
+    return new Promise(resolve => {
+        const request = (globalThis as any).GM_xmlhttpRequest
+        if (typeof request !== 'function') {
+            resolve(false)
             return
         }
-        if (sawChallengeElement) {
-            return
-        }
-        const frame = frameRef.value
-        try {
-            const doc = frame?.contentDocument
-            if (doc && (doc.body?.innerText || '').length > 120 && !doc.querySelector(CHALLENGE_SELECTOR)) {
-                pass()
-            }
-        } catch {
-            // 读不到就继续挂着，宁可让用户手动关，也不要误判
-        }
-    }, 10000)
+        request({
+            method: 'GET',
+            url: challengeState.url,
+            timeout: 8000,
+            onload: (res: any) => {
+                if (res.status !== 200) {
+                    resolve(false)
+                    return
+                }
+                const body = String(res.responseText || '')
+                resolve(body.length > 0 && !isCloudflareChallengeHtml(body))
+            },
+            onerror: () => resolve(false),
+            ontimeout: () => resolve(false),
+        })
+    })
 }
 
-function pass(): void {
-    if (challengeState.passed) {
+async function tick(): Promise<void> {
+    if (challengeState.passed || !challengeState.active) {
+        stopProbing()
         return
     }
-    stopWatching()
+    if (Date.now() < probeStartAt) {
+        return
+    }
+    if (Date.now() < probeStartAt) {
+        return
+    }
+    if (Date.now() > probeDeadline) {
+        stopProbing()
+        return
+    }
+    const ok = await probe()
+    sawResult.value = true
+    if (!ok) {
+        return
+    }
+    stopProbing()
+    passed.value = true
     challengeState.passed = true
-    // 收起弹层，让失败的图片各自重试；不刷新页面
-    window.setTimeout(finish, 400)
+    // 验证通过：让失败的图片各自重试，不刷新页面
+    window.setTimeout(() => {
+        store.retryAllToken += 1
+        closeCloudflareChallenge()
+    }, 600)
 }
 
-function startWatching(): void {
-    stopWatching()
-    timedOut.value = false
-    sawChallengeElement = false
-    pollTimer = window.setInterval(checkFrame, 800)
-    timeoutTimer = window.setTimeout(() => {
-        timedOut.value = true
-    }, 60000)
+function startProbing(): void {
+    stopProbing()
+    passed.value = false
+    sawResult.value = false
+    probeStartAt = Date.now() + 5000
+    probeDeadline = Date.now() + PROBE_MAX_MS
+    probeTimer = window.setInterval(() => {
+        void tick()
+    }, PROBE_INTERVAL_MS)
+    void tick()
 }
 
 /**
- * 验证通过后**不刷新页面**。
- *
- * 每个图片页本来就有失败重试机制，这里只要递一个令牌，让失败的那些立刻重来一次。
- * 刷新整页既没必要，又会在请求仍被拒时再次触发验证层，来回循环直到把站点打成频率限制。
+ * 必须由用户点击触发：浏览器会拦截非手势的 window.open。
+ * 点过之后才开始探测——用户没打算验证时不探测，避免误判。
  */
-function finish(): void {
-    store.retryAllToken += 1
-    closeCloudflareChallenge()
+function openVerifyPage(): void {
+    window.open(challengeState.url, '_blank', 'noopener,width=980,height=760')
+    startProbing()
 }
 
 function dismiss(): void {
-    stopWatching()
+    stopProbing()
     closeCloudflareChallenge()
 }
 
@@ -175,15 +160,18 @@ watch(
     () => challengeState.active,
     (active) => {
         if (active) {
-            startWatching()
+            // 只是重置显示状态；探测要等用户点按钮才开始
+            stopProbing()
+            passed.value = false
+            sawResult.value = false
         } else {
-            stopWatching()
+            stopProbing()
         }
     },
     { immediate: true },
 )
 
-onBeforeUnmount(stopWatching)
+onBeforeUnmount(stopProbing)
 </script>
 
 <style lang="scss" scoped>
@@ -201,8 +189,7 @@ onBeforeUnmount(stopWatching)
 .cf-panel {
     display: flex;
     flex-direction: column;
-    width: min(560px, 100%);
-    max-height: 90vh;
+    width: min(460px, 100%);
     overflow: hidden;
     background: #2a2a2c;
     color: #eee;
@@ -243,25 +230,43 @@ onBeforeUnmount(stopWatching)
 .cf-hint {
     margin: 0 16px 12px;
     font-size: 13px;
-    line-height: 1.5;
-    color: #a8a8ad;
+    line-height: 1.55;
+    color: #b6b6bb;
 }
 
-.cf-frame-wrap {
-    flex: 1;
-    min-height: 320px;
+.cf-body {
     margin: 0 16px;
-    overflow: hidden;
+    padding: 14px 16px;
     background: #1b1b1d;
     border-radius: 6px;
+    text-align: center;
 }
 
-.cf-frame {
-    display: block;
+.cf-open {
     width: 100%;
-    height: 100%;
-    min-height: 320px;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: #3b6ea5;
     border: none;
+    border-radius: 5px;
+    cursor: pointer;
+
+    &:hover {
+        background: #4680bd;
+    }
+}
+
+.cf-status {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #8a8a90;
+
+    &.ok {
+        color: #6fbf73;
+    }
 }
 
 .cf-fallback {
@@ -269,6 +274,6 @@ onBeforeUnmount(stopWatching)
     padding: 10px 16px 14px;
     font-size: 12px;
     line-height: 1.5;
-    color: #8a8a90;
+    color: #7d7d83;
 }
 </style>

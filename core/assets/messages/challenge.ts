@@ -1,39 +1,39 @@
-/** 运行中被 Cloudflare 挑战时的验证弹层 */
+/** 需要用户去完成 Cloudflare 验证时的提示层 */
 export const challenge: Record<string, { cn: string, en: string, jp: string }> = {
     cfTitle: {
-        cn: '需要完成一次验证',
-        en: 'Verification needed',
-        jp: '本人確認が必要です'
+        cn: '站点需要验证',
+        en: 'Site verification required',
+        jp: 'サイトの本人確認が必要です'
     },
     cfHint: {
-        cn: '站点要求验证，完成下面这一步就会带着当前进度自动重新加载。',
-        en: 'The site is asking for a check. Finish it below and the page reloads at your current position.',
-        jp: 'サイトが確認を求めています。下記を完了すると現在の位置から自動的に再読み込みします。'
-    },
-    cfPassed: {
-        cn: '验证已通过，正在重试加载失败的内容…',
-        en: 'Verification passed. Retrying the failed content…',
-        jp: '確認が完了しました。読み込みに失敗した内容を再試行しています…'
-    },
-    cfTimeout: {
-        cn: '验证似乎没能完成。可以点「在新窗口打开」完成后再回来点重新加载。',
-        en: 'The check did not complete. Try "Open in new window", then come back and reload.',
-        jp: '確認が完了しませんでした。「新しいウィンドウで開く」で完了してから再読み込みしてください。'
-    },
-    cfFallback: {
-        cn: '通常几秒后会自动关闭；如果一直停在这里，点右上角关闭即可，内容会自行重试。',
-        en: 'This usually closes by itself in a few seconds. If it stays, close it — content will retry on its own.',
-        jp: '通常は数秒で自動的に閉じます。閉じない場合は右上の×で閉じてください。内容は自動で再試行されます。'
+        cn: '点下面的按钮，在新标签页里完成验证。验证通过后这里会自动收起，不用手动刷新。',
+        en: 'Tap the button and finish the check in the new tab. This dialog closes by itself once you pass.',
+        jp: '下のボタンから新しいタブで確認を完了してください。完了すると自動的に閉じます。'
     },
     cfOpenExternal: {
-        cn: '在新窗口打开',
-        en: 'Open in new window',
-        jp: '新しいウィンドウで開く'
+        cn: '打开验证页面',
+        en: 'Open verification page',
+        jp: '確認ページを開く'
     },
-    cfReload: {
-        cn: '手动刷新页面',
-        en: 'Reload page manually',
-        jp: '手動でページを再読み込み'
+    cfWaiting: {
+        cn: '正在等待验证结果…',
+        en: 'Waiting for verification…',
+        jp: '確認結果を待っています…'
+    },
+    cfPollHint: {
+        cn: '还没通过。在上面的新标签页完成验证后，这里会自动收起。',
+        en: 'Not passed yet. Finish the check in the tab above and this will close itself.',
+        jp: 'まだ完了していません。上のタブで確認を終えると自動的に閉じます。'
+    },
+    cfPassed: {
+        cn: '验证已通过，正在重新加载内容…',
+        en: 'Verification passed. Reloading content…',
+        jp: '確認が完了しました。内容を再読み込みしています…'
+    },
+    cfFallback: {
+        cn: '如果一直不通过，点右上角关闭，手动刷新页面即可。',
+        en: 'If it never passes, close this and reload the page manually.',
+        jp: '通らない場合は右上の×で閉じて、ページを手動で再読み込みしてください。'
     },
     cfClose: {
         cn: '关闭',
