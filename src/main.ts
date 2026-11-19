@@ -50,6 +50,10 @@ type WindowWithEHunterBridge = Window & {
 const EHUNTER_STATUS_KEY = 'ehunter:reader:open'
 const EHUNTER_SWITCH_ID = 'ehunter-switch'
 const EHUNTER_CONTAINER_ID = 'ehunter-app'
+/** 验证窗口的 window.name，和 challenge store 里保持一致 */
+const VERIFY_WINDOW_NAME = 'ehunter-cf-verify'
+/** 验证窗口写、父窗口读的 localStorage 键 */
+const VERIFY_READY_KEY = 'ehunter:verify-ready'
 const EHUNTER_OPEN_DURATION_MS = 720
 const EHUNTER_CLOSE_DURATION_MS = 580
 const EHUNTER_OPEN_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
@@ -469,6 +473,39 @@ function installSpaNavigationWatcher(): void {
   window.setInterval(onUrlMaybeChanged, 400)
 }
 
+/**
+ * 是否是「验证窗口」（由本脚本 window.open 打开，加载站点首页）。
+ *
+ * 只认 window.name。window.opener 在 Edge 上可能因为 noopener 策略是 null，
+ * 拿它做条件会让验证窗口里的脚本什么都不做，父窗口永远等不到完成信号。
+ */
+function isVerifyPopup(): boolean {
+  return window.name === VERIFY_WINDOW_NAME
+}
+
+/**
+ * 验证窗口里：确认页面已经正常，就通知父窗口。
+ *
+ * 挑战页结构还在就不通知——那说明用户还没验证完，等页面跳转后脚本重跑。
+ */
+function announceVerifyReadyIfPossible(): void {
+  const announce = () => {
+    if (isCloudflareChallengeDocument()) {
+      return
+    }
+    try {
+      window.localStorage.setItem(VERIFY_READY_KEY, String(Date.now()))
+    } catch {
+      // localStorage 不可用就算了，父窗口会退回自己的判断
+    }
+  }
+  if (document.readyState === 'complete') {
+    announce()
+  } else {
+    window.addEventListener('load', announce, { once: true })
+  }
+}
+
 /** 创建容器、挂 UI 桥、按上次状态决定是否自动打开 */
 function mountPlatform(platform: Platform): void {
   ensureMounted(platform)
@@ -506,7 +543,19 @@ function waitForNhentaiStructure(platform: Platform): void {
 }
 
 // ---- Initial boot ----
-if (isChallengeFrame()) {
+if (isVerifyPopup()) {
+  /**
+   * 这是「验证窗口」——由 window.open 打开、用来完成 Cloudflare 验证的独立小窗口。
+   *
+   * 它加载的是站点首页。如果首页已经能正常渲染（没有挑战页结构），说明
+   * cf_clearance 生效了，往 localStorage 写个记号，父窗口的 storage 事件会收到。
+   *
+   * 用 localStorage 而不是 window.opener.postMessage：Edge 上 window.open
+   * 常常返回 null（即使窗口确实开着），父窗口根本拿不到引用去读状态；
+   * 而两个窗口同源，storage 事件一定能送达。
+   */
+  announceVerifyReadyIfPossible()
+} else if (isChallengeFrame()) {
   /**
    * 这个 iframe 是验证覆盖层里用来给用户完成 Cloudflare 验证的。
    * 它加载的仍是站点的 URL，@match 同样会命中，如果不在这里退出，

@@ -20,9 +20,14 @@ export const challengeState = reactive({
     passed: false,
 })
 
-/** 同一地址多久内不重复弹（毫秒） */
+/**
+ * 多久内最多弹一次窗口（毫秒）。
+ *
+ * 用**全局**时间戳而不是按 URL 分开算：一次加载会并发好几个图片页请求，
+ * 它们 URL 各不相同，按 URL 冷却等于每个都放行，结果一下弹出好几个窗口。
+ */
 const NOTIFY_COOLDOWN_MS = 60_000
-const lastNotifiedAt = new Map<string, number>()
+let lastNotifiedAt = 0
 
 /** 弹出的验证窗口（保留引用才能读它的页面状态、才能关掉它） */
 let verifyWindow: Window | null = null
@@ -160,9 +165,7 @@ export function canOpenVerifyWindow(): boolean {
 /** 用户点按钮时调用：弹窗口并开始探测 */
 export function startVerifyByUser(): void {
     openVerifyWindow()
-    if (verifyWindow) {
-        startProbing(challengeState.url)
-    }
+    startProbing(challengeState.url)
 }
 
 /**
@@ -192,6 +195,44 @@ function verifyWindowPassed(): boolean {
     }
 }
 
+/** 验证窗口写、主窗口读的 localStorage 键（与 main.ts 保持一致） */
+const VERIFY_READY_KEY = 'ehunter:verify-ready'
+
+/**
+ * 验证已经完成时的统一收尾：关窗口、让失败的图片重试、收起卡片。
+ */
+function handleVerifyPassed(): void {
+    if (challengeState.passed) {
+        return
+    }
+    stopProbing()
+    challengeState.passed = true
+    closeVerifyWindow()
+    // 让失败的那些图片立刻重来一次；不刷新页面
+    store.retryAllToken += 1
+    window.setTimeout(() => {
+        closeChallenge()
+    }, 600)
+}
+
+/**
+ * 验证窗口加载成功后会往 localStorage 写一个记号，这里接住它。
+ *
+ * 不依赖 window.open 的返回值：Edge 上它经常返回 null（窗口明明开着），
+ * 拿不到引用就读不到那个窗口的状态，检测永远失败、窗口永远不关。
+ * 两个窗口同源，storage 事件一定能送达。
+ */
+function installVerifyReadyListener(): void {
+    window.addEventListener('storage', event => {
+        if (event.key !== VERIFY_READY_KEY) {
+            return
+        }
+        handleVerifyPassed()
+    })
+}
+
+installVerifyReadyListener()
+
 async function tick(): Promise<void> {
     if (!probing || challengeState.passed) {
         stopProbing()
@@ -207,6 +248,7 @@ async function tick(): Promise<void> {
 
     // 用户自己把窗口关了：停止等待，不再折腾
     if (verifyWindow && verifyWindow.closed) {
+        // 用户自己关了窗口：收起卡片。全局冷却会让最近一分钟内不再自动弹。
         stopProbing()
         closeChallenge()
         return
@@ -218,15 +260,7 @@ async function tick(): Promise<void> {
     if (!passed) {
         return
     }
-    stopProbing()
-    challengeState.passed = true
-    closeVerifyWindow()
-    // 让失败的那些图片立刻重来一次；不刷新页面
-    store.retryAllToken += 1
-    // 稍等一下让用户看清"已验证"，再收起弹层
-    window.setTimeout(() => {
-        closeChallenge()
-    }, 600)
+    handleVerifyPassed()
 }
 
 function startProbing(url: string): void {
@@ -253,11 +287,10 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
         return false
     }
     const now = Date.now()
-    const last = lastNotifiedAt.get(url) ?? 0
-    if (now - last < NOTIFY_COOLDOWN_MS) {
+    if (now - lastNotifiedAt < NOTIFY_COOLDOWN_MS) {
         return false
     }
-    lastNotifiedAt.set(url, now)
+    lastNotifiedAt = now
 
     /*
      * 这里**不做**前置探测。
@@ -280,9 +313,11 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
      */
     challengeState.active = true
     openVerifyWindow()
-    if (verifyWindow) {
-        startProbing(url)
-    }
+    /*
+     * 不管 window.open 有没有返回引用都开始等待：真正判断「验证完成」靠的是
+     * 验证窗口写入的 localStorage 记号（storage 事件），不依赖这个引用。
+     */
+    startProbing(url)
     return true
 }
 
