@@ -61,6 +61,11 @@ type FullscreenTarget = HTMLElement & {
 const isFullscreen = ref(false)
 const dockWorkspaceRef = ref<null | { startDockDrag: (payload: GestureStartPayload) => void }>(null)
 const showThumb = computed(() => {
+    // 没有缩略图数据就别展开侧栏：它一旦展开就固定占 thumbSizePx，
+    // 空白栏会把漫画整体推向右（joyacg 就是这样偏右的）。
+    if (!store.thumbInfos.length) {
+        return false
+    }
     if (store.readingMode === 0) {
         return store.showThumbView
     }

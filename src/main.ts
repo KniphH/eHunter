@@ -303,6 +303,59 @@ const ensureMounted = (platform: Platform): HTMLElement => {
   return container
 }
 
+/**
+ * 插件开着的时候，把宿主页面的图片加载停掉。
+ *
+ * 否则同一张图会被加载两遍：宿主页面自己拉一遍（它并不显示），插件再拉一遍。
+ * 做法是把 img 的 src 摘下来暂存到 data 属性里——不删节点、不动 iframe，
+ * 这样 Cloudflare 的 Turnstile 容器仍然完好，只是不再白下载图片。
+ * 关掉插件时原样恢复。
+ */
+let hostImageObserver: MutationObserver | null = null
+
+function stripHostImage(node: ParentNode): void {
+  const imgs = node instanceof HTMLImageElement ? [node] : Array.from(node.querySelectorAll?.('img') || [])
+  for (const img of imgs) {
+    if (img.closest(`#${EHUNTER_CONTAINER_ID}`) || img.closest(`#${EHUNTER_SWITCH_ID}`)) {
+      continue
+    }
+    const src = img.getAttribute('src')
+    if (src && !src.startsWith('data:') && !src.startsWith('blob:')) {
+      img.setAttribute('data-ehunter-saved-src', src)
+      img.removeAttribute('src')
+    }
+  }
+}
+
+function blockHostImageLoading(): void {
+  if (hostImageObserver) {
+    return
+  }
+  stripHostImage(document)
+  hostImageObserver = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (node instanceof HTMLElement || node instanceof HTMLImageElement) {
+          stripHostImage(node as ParentNode)
+        }
+      }
+    }
+  })
+  hostImageObserver.observe(document.documentElement, { childList: true, subtree: true })
+}
+
+function restoreHostImageLoading(): void {
+  hostImageObserver?.disconnect()
+  hostImageObserver = null
+  document.querySelectorAll('img[data-ehunter-saved-src]').forEach(img => {
+    const saved = img.getAttribute('data-ehunter-saved-src')
+    if (saved) {
+      img.setAttribute('src', saved)
+    }
+    img.removeAttribute('data-ehunter-saved-src')
+  })
+}
+
 const toggleEHunterView = (show: boolean): void => {
   const container = ensureMounted(mountedPlatform!)
   // 阅读器打开时不显示那个"拉绳"：它只用来在关闭状态下把插件叫出来。
@@ -335,6 +388,8 @@ const toggleEHunterView = (show: boolean): void => {
   }
 
   if (show) {
+    // 插件接管显示：宿主页面的图片不用再下载了
+    blockHostImageLoading()
     ensureEHViewportForOpen()
     container.style.visibility = 'visible'
     container.style.pointerEvents = 'auto'
@@ -344,6 +399,10 @@ const toggleEHunterView = (show: boolean): void => {
     return
   }
 
+  // 关掉插件：把宿主页面的图片放回去，让它自己继续加载
+  restoreHostImageLoading()
+  // 关掉插件：把宿主页面的图片放回去，让它自己继续加载
+  restoreHostImageLoading()
   restoreEHViewportOnClose()
   container.style.top = '-100%'
   scheduleHideContainer(container, EHUNTER_CLOSE_DURATION_MS)
