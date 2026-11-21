@@ -20,6 +20,11 @@ export const settings: Record<string, { cn: string, en: string, jp: string }> = 
         en: 'Quick settings',
         jp: 'クイック設定'
     },
+    settingsSuperRes: {
+        cn: '超分',
+        en: 'Super resolution',
+        jp: '超解像'
+    },
     settingsShortcuts: {
         cn: '快捷键',
         en: 'Shortcuts',

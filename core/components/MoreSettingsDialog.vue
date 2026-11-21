@@ -162,44 +162,7 @@
                                 </div>
                             </article>
 
-                            <article ref="superResRef" class="ehunter-group" data-category="superRes">
-                                <h4>{{ i18n.settingsSuperRes }}</h4>
-                                <div class="ehunter-row" v-for="fieldId in dialogSuperResFieldIds" :key="fieldId">
-                                    <div class="ehunter-label-block">
-                                        <span class="ehunter-label">{{ fieldLabel(fieldId) }}</span>
-                                        <p v-if="fieldTip(fieldId)" class="ehunter-tip">{{ fieldTip(fieldId) }}</p>
-                                    </div>
-                                    <DropOption
-                                        v-if="settingFieldMap[fieldId]?.control === 'drop'"
-                                        :list="getDropList(fieldId)"
-                                        :cur-val="getFieldValue(fieldId)"
-                                        :format-cur-val-by-list="true"
-                                        :use-abbr-name="!!settingFieldMap[fieldId]?.useAbbrName"
-                                        @change="(val) => onFieldChange(fieldId, val)" />
-                                    <NumDropOption
-                                        v-else-if="settingFieldMap[fieldId]?.control === 'num'"
-                                        :quick-options="getNumList(fieldId)"
-                                        :cur-val="getFieldValue(fieldId)"
-                                        :suffix="getNumSuffix(fieldId)"
-                                        :min="settingFieldMap[fieldId]?.min || 0"
-                                        :max="settingFieldMap[fieldId]?.max || 999"
-                                        :is-float="!!settingFieldMap[fieldId]?.isFloat"
-                                        @change="(val) => onFieldChange(fieldId, val)" />
-                                    <SimpleSwitch
-                                        v-else-if="settingFieldMap[fieldId]?.control === 'switch'"
-                                        :active="!!getFieldValue(fieldId)"
-                                        @change="(val) => onFieldChange(fieldId, val)" />
-                                </div>
-                                <div class="ehunter-row">
-                                    <div class="ehunter-label-block">
-                                        <span class="ehunter-label">{{ i18n.superResolutionShaders }}</span>
-                                        <p class="ehunter-tip">{{ i18n.superResolutionShadersTip }}</p>
-                                    </div>
-                                    <button class="ehunter-action" type="button" @click="superResDialogActive = true">
-                                        {{ superResSummary }}
-                                    </button>
-                                </div>
-                            </article>
+                            
 
                             <article ref="shortcutsRef" class="ehunter-group" data-category="shortcuts">
                                 <h4>{{ i18n.settingsShortcuts }}</h4>
@@ -241,6 +204,45 @@
                                 <div class="ehunter-row">
                                     <span class="ehunter-label">{{ i18n.shortcutResetLabel }}</span>
                                     <button class="ehunter-action" @click="storeAction.resetShortcutBindings">{{ i18n.shortcutResetAction }}</button>
+                                </div>
+                            </article>
+
+                            <article ref="superResRef" class="ehunter-group" data-category="superRes">
+                                <h4>{{ i18n.settingsSuperRes }}</h4>
+                                <div class="ehunter-row" v-for="fieldId in dialogSuperResFieldIds" :key="fieldId">
+                                    <div class="ehunter-label-block">
+                                        <span class="ehunter-label">{{ fieldLabel(fieldId) }}</span>
+                                        <p v-if="fieldTip(fieldId)" class="ehunter-tip">{{ fieldTip(fieldId) }}</p>
+                                    </div>
+                                    <DropOption
+                                        v-if="settingFieldMap[fieldId]?.control === 'drop'"
+                                        :list="getDropList(fieldId)"
+                                        :cur-val="getFieldValue(fieldId)"
+                                        :format-cur-val-by-list="true"
+                                        :use-abbr-name="!!settingFieldMap[fieldId]?.useAbbrName"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                    <NumDropOption
+                                        v-else-if="settingFieldMap[fieldId]?.control === 'num'"
+                                        :quick-options="getNumList(fieldId)"
+                                        :cur-val="getFieldValue(fieldId)"
+                                        :suffix="getNumSuffix(fieldId)"
+                                        :min="settingFieldMap[fieldId]?.min || 0"
+                                        :max="settingFieldMap[fieldId]?.max || 999"
+                                        :is-float="!!settingFieldMap[fieldId]?.isFloat"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                    <SimpleSwitch
+                                        v-else-if="settingFieldMap[fieldId]?.control === 'switch'"
+                                        :active="!!getFieldValue(fieldId)"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                </div>
+                                <div class="ehunter-row">
+                                    <div class="ehunter-label-block">
+                                        <span class="ehunter-label">{{ i18n.superResolutionShaders }}</span>
+                                        <p class="ehunter-tip">{{ i18n.superResolutionShadersTip }}</p>
+                                    </div>
+                                    <button class="ehunter-action" type="button" @click="superResDialogActive = true">
+                                        {{ superResSummary }}
+                                    </button>
                                 </div>
                             </article>
 

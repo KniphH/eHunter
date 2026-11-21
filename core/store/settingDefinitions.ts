@@ -87,8 +87,8 @@ export const settingsCategories: SettingsCategory[] = [
     { id: 'scroll', i18nKey: 'settingsScrollMode' },
     { id: 'book', i18nKey: 'settingsBookMode' },
     { id: 'quick', i18nKey: 'settingsQuick' },
-    { id: 'superRes', i18nKey: 'settingsSuperRes' },
     { id: 'shortcuts', i18nKey: 'settingsShortcuts' },
+    { id: 'superRes', i18nKey: 'settingsSuperRes' },
     { id: 'other', i18nKey: 'settingsOther' },
 ]
 
