@@ -67,6 +67,8 @@ const EHUNTER_SWITCH_ID = 'ehunter-switch'
 const EHUNTER_CONTAINER_ID = 'ehunter-app'
 /** 验证窗口的 window.name，和 challenge store 里保持一致 */
 const VERIFY_WINDOW_NAME = 'ehunter-cf-verify'
+/** 验证窗口的 URL 标记参数，与 challenge store 保持一致 */
+const VERIFY_MARK_PARAM = 'ehunter-verify'
 /** 验证窗口写、父窗口读的 localStorage 键 */
 const VERIFY_READY_KEY = 'ehunter:verify-ready'
 const EHUNTER_OPEN_DURATION_MS = 720
@@ -608,6 +610,19 @@ function installSpaNavigationWatcher(): void {
  * 拿它做条件会让验证窗口里的脚本什么都不做，父窗口永远等不到完成信号。
  */
 function isVerifyPopup(): boolean {
+  /*
+   * 优先看 URL 参数：window.name 在跨域导航后会失效。
+   * Cloudflare 的验证会跳到 challenges.cloudflare.com 再跳回来，
+   * 回来时 name 已经空了，脚本认不出自己是验证窗口，于是不写完成信号，
+   * 父窗口就一直等下去——这就是「能验证但窗口不关」的原因。
+   */
+  try {
+    if (new URLSearchParams(location.search).has(VERIFY_MARK_PARAM)) {
+      return true
+    }
+  } catch {
+    // 解析失败就退回 name 判断
+  }
   return window.name === VERIFY_WINDOW_NAME
 }
 

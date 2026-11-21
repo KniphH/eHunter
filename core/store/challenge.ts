@@ -26,6 +26,17 @@ export const challengeState = reactive({
  * 用**全局**时间戳而不是按 URL 分开算：一次加载会并发好几个图片页请求，
  * 它们 URL 各不相同，按 URL 冷却等于每个都放行，结果一下弹出好几个窗口。
  */
+/**
+ * 验证窗口的 URL 标记参数。
+ *
+ * 不能用 window.name 识别验证窗口：它在跨域导航后会被浏览器清空，
+ * 而 Cloudflare 验证会跳到 challenges.cloudflare.com 再跳回来，
+ * 回来时名字已经没了，窗口里的脚本认不出自己，于是不写完成信号，
+ * 父窗口就一直等到超时——表现就是「能验证，但窗口不关」。
+ * URL 参数在同源跳转中会保留。
+ */
+export const VERIFY_MARK_PARAM = 'ehunter-verify'
+
 const NOTIFY_COOLDOWN_MS = 60_000
 let lastNotifiedAt = 0
 
@@ -126,9 +137,17 @@ function openVerifyWindow(): void {
      * 而打开具体页有两个坏处：那正是插件正在请求、可能被拒的地址；
      * 而且用户本来就在那一页，原页面自己会重试，不需要再开一个。
      */
+    /*
+     * 带一个标记参数。window.name 在跨域导航后会被浏览器清空，
+     * 而 Cloudflare 验证正好会跳到 challenges.cloudflare.com 再跳回来，
+     * 结果验证窗口里的脚本认不出自己，永远不写「已完成」信号。
+     * URL 参数在同源跳转时会被保留，用它更可靠。
+     */
     let target = location.origin
     try {
-        target = new URL('/', location.origin).href
+        const url = new URL('/', location.origin)
+        url.searchParams.set(VERIFY_MARK_PARAM, '1')
+        target = url.href
     } catch {
         // 保持 location.origin
     }
