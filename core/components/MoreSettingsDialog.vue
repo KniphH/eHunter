@@ -250,7 +250,7 @@
                                 <h4>{{ i18n.settingsOther }}</h4>
                                 <div class="ehunter-row">
                                     <span class="ehunter-label">{{ i18n.versionLabel }}</span>
-                                    <span class="ehunter-value">{{ versionText }}</span>
+                                    <span class="ehunter-value">{{ versionText }}<template v-if="buildStampText"> · {{ buildStampText }}</template></span>
                                 </div>
                                 <div class="ehunter-row">
                                     <span class="ehunter-label">{{ i18n.infoTip }}</span>
@@ -350,6 +350,7 @@ watch(() => store.superResEnabled, (enabled) => {
 })
 const pinnedQuickSettingId = 'readingMode'
 
+const buildStampText = typeof __BUILD_STAMP__ === 'string' ? __BUILD_STAMP__ : ''
 const versionText = computed(() => pkgJson.version)
 
 function handleContentDragOver(e: DragEvent) {

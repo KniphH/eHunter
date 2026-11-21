@@ -748,6 +748,13 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
         files.push({
             name: typeof item.name === 'string' && item.name ? item.name : `shader-${files.length + 1}.glsl`,
             text: item.text,
+            /*
+             * 必须带上 enabled。
+             * 之前这里只拷 name 和 text，写入时存了 enabled、读回来却被丢掉，
+             * 于是「取消勾选」永远变回「全部启用」——
+             * 摘要不变、signature 不变、画面照旧放大，全都是这一个原因。
+             */
+            ...(item.enabled === false ? { enabled: false } : {}),
         })
     }
     return files

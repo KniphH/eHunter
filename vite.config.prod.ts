@@ -123,7 +123,8 @@ export default defineConfig({
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
-    __EHUNTER_VERSION__: JSON.stringify(pkg.version)
+    __EHUNTER_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_STAMP__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' '))
   },
   appType: 'custom',
   server: {
