@@ -321,22 +321,29 @@ const netLines = computed(() => netSamples.value.slice(-5))
  */
 const superResMap = computed(() => {
     void stats.tick
-    if (!store.superResEnabled) {
-        return [] as Array<{ index: number, state: 'done' | 'running' }>
-    }
     const { cached, rendering } = superResolutionService.getLiveState()
     const cachedSet = new Set(cached)
     const renderingSet = new Set(rendering)
-    const items: Array<{ index: number, state: 'done' | 'running' }> = []
+    const items: Array<{ index: number, state: 'done' | 'running' | 'loaded' }> = []
     store.imgPageInfos.forEach((info, index) => {
         const src = info.src
         if (!src) {
             return
         }
+        /*
+         * 这张图不是只统计超分，而是整本的进度：
+         *   黄色 = 正在超分
+         *   绿色 = 已超分（在缓存里）
+         *   灰色 = 已加载出图片，但还没超分
+         * 没加载出来的不显示。
+         */
         if (renderingSet.has(src)) {
             items.push({ index, state: 'running' })
         } else if (cachedSet.has(src)) {
             items.push({ index, state: 'done' })
+        } else if (stats.pages[index]?.status === 3) {
+            // 3 = ImgLoadStatus.Loaded（StatsService 的约定），即「这张图已经加载出来了」
+            items.push({ index, state: 'loaded' })
         }
     })
     return items.sort((a, b) => a.index - b.index)
@@ -841,6 +848,16 @@ onBeforeUnmount(() => {
     &.done {
         color: #06270d;
         background: #5cb96a;
+    }
+
+    &.loaded {
+        color: #e6edf3;
+        background: #4a5462;
+    }
+
+    &.loaded {
+        color: #e6edf3;
+        background: #4a5462;
     }
 }
 </style>
