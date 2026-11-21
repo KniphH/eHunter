@@ -100,8 +100,7 @@ export class WNACGAlbumServiceImpl implements AlbumService {
     })
 
     try {
-      // 阅读页有两种路径：photos-slide-aid-406309 / photos-view-id-36048215
-      const aidMatch = window.location.pathname.match(/(?:aid|view-id)-(\d+)/)
+      const aidMatch = window.location.pathname.match(/aid-(\d+)/)
       if (!aidMatch) {
         throw new Error('Album id not found in url')
       }
