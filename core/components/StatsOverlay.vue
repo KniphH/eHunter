@@ -65,6 +65,15 @@
                 <span class="ehunter-stats-k">{{ row.key }}</span>
                 <span class="ehunter-stats-v" :class="{ warn: row.warn }">{{ row.value }}</span>
             </div>
+            <!-- 实时超分分布：只列「已算好」和「正在算」的页序号 -->
+            <div v-if="superResMap.length" class="ehunter-stats-map">
+                <span
+                    v-for="item in superResMap"
+                    :key="item.index"
+                    class="ehunter-stats-cell"
+                    :class="item.state"
+                    :title="`第 ${item.index + 1} 页`">{{ item.index + 1 }}</span>
+            </div>
         </section>
 
         <section class="ehunter-stats-section">
@@ -303,6 +312,35 @@ const netSamples = computed(() => {
 
 /** 明细只留最后 5 条：柱状图已经表达了节奏，再列 12 行只会把面板撑长 */
 const netLines = computed(() => netSamples.value.slice(-5))
+
+/**
+ * 实时超分分布：页序号 + 状态。
+ *
+ * 依赖 stats.tick 刷新——超分服务内部是普通字段，不会触发响应式更新。
+ * 只收「缓存里已有」和「正在渲染」两种；排队中的不算，否则一开开关就是一整片。
+ */
+const superResMap = computed(() => {
+    void stats.tick
+    if (!store.superResEnabled) {
+        return [] as Array<{ index: number, state: 'done' | 'running' }>
+    }
+    const { cached, rendering } = superResolutionService.getLiveState()
+    const cachedSet = new Set(cached)
+    const renderingSet = new Set(rendering)
+    const items: Array<{ index: number, state: 'done' | 'running' }> = []
+    store.imgPageInfos.forEach((info, index) => {
+        const src = info.src
+        if (!src) {
+            return
+        }
+        if (renderingSet.has(src)) {
+            items.push({ index, state: 'running' })
+        } else if (cachedSet.has(src)) {
+            items.push({ index, state: 'done' })
+        }
+    })
+    return items.sort((a, b) => a.index - b.index)
+})
 
 const superRows = computed(() => {
     // 必须依赖 tick：getStats() 读的是超分服务内部的普通字段（非 reactive），
@@ -658,6 +696,15 @@ onBeforeUnmount(() => {
                 }
             }
 
+            > .ehunter-stats-map {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 3px;
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px dashed rgba(255, 255, 255, 0.08);
+            }
+
             > .ehunter-stats-row {
                 display: flex;
                 align-items: baseline;
@@ -773,6 +820,27 @@ onBeforeUnmount(() => {
         > .ehunter-stats-uptime {
             color: #8b949e;
         }
+    }
+}
+
+.ehunter-stats-cell {
+    display: inline-block;
+    min-width: 20px;
+    padding: 2px 4px;
+    font-size: 10px;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    border-radius: 3px;
+
+    &.running {
+        color: #2a1f00;
+        background: #e0b34a;
+    }
+
+    &.done {
+        color: #06270d;
+        background: #5cb96a;
     }
 }
 </style>

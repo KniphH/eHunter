@@ -1044,6 +1044,26 @@ class SuperResolutionService {
     }
 
     /** 状态浮层用的汇总。别在渲染热路径里调用 */
+    /**
+     * 当前实时的超分分布：哪些页已经算好在缓存里、哪些正在算。
+     *
+     * `pending` 里既有「排队中」也有「正在渲染」，排队的不该算"正在超"，
+     * 所以用 queuedByUrl 把还没开工的减掉。给统计浮层画页序号图用。
+     */
+    getLiveState(): { cached: string[], rendering: string[] } {
+        const queued = new Set(this.queuedByUrl.keys())
+        const rendering: string[] = []
+        for (const url of this.pending.keys()) {
+            if (!queued.has(url)) {
+                rendering.push(url)
+            }
+        }
+        return {
+            cached: Array.from(this.resultCache.keys()),
+            rendering,
+        }
+    }
+
     getStats(): { cacheSize: number, hits: number, misses: number, queued: number } {
         return {
             cacheSize: this.resultCache.size,
