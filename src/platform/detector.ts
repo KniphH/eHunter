@@ -64,7 +64,8 @@ export function detectPlatform(): PlatformDetectionResult {
   }
 
   const isWnacgHost = /(^|\.)wnacg\.(com|ru|net|org)$/i.test(hostname)
-  const isWnacgReaderPage = /^\/photos-slide-aid-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
+  // 阅读页有两种：photos-slide-aid-*（滑动阅读）和 photos-view-id-*（整本视图）
+  const isWnacgReaderPage = /^\/photos-(?:slide-aid|view-id)-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
 
   // WNACG platform: reader page only
   if (isWnacgHost && isWnacgReaderPage) {

@@ -305,6 +305,12 @@ const ensureMounted = (platform: Platform): HTMLElement => {
 
 const toggleEHunterView = (show: boolean): void => {
   const container = ensureMounted(mountedPlatform!)
+  // 阅读器打开时不显示那个"拉绳"：它只用来在关闭状态下把插件叫出来。
+  // 之前一直挂着，打开后会叠在页面上。
+  const switchEl = document.getElementById(EHUNTER_SWITCH_ID)
+  if (switchEl) {
+    switchEl.style.setProperty('display', show ? 'none' : 'flex', 'important')
+  }
   clearHideTimer()
   container.style.transitionProperty = 'top'
   container.style.transitionDuration = show
