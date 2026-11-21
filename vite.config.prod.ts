@@ -26,6 +26,13 @@ const userscriptBanner = `// ==UserScript==
 // @match        https://pixiv.net/*
 // @match        https://wnacg.com/*
 // @match        https://*.wnacg.com/*
+// @match        https://18comic.vip/*
+// @match        https://18comic.ink/*
+// @match        https://jmcomic-zzz.one/*
+// @match        https://jmcomic-zzz.org/*
+// @match        https://comic18j-susu.com/*
+// @match        https://comic18j-nico.work/*
+// @match        https://comic18j-neo.com/*
 // @match        https://joyacg.cc/*
 // @match        https://joyacg.top/*
 // @connect      hath.network
@@ -33,6 +40,10 @@ const userscriptBanner = `// ==UserScript==
 // @connect      wnacg.com
 // @connect      joyacg.cc
 // @connect      joyacg.top
+// @connect      cdn-msp.18comic.vip
+// @connect      cdn-msp2.18comic.vip
+// @connect      cdn-msp3.18comic.vip
+// @connect      18comic.vip
 // @connect      i0.wp.com
 // @connect      i1.wp.com
 // @connect      i2.wp.com

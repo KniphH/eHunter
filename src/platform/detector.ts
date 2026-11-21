@@ -76,6 +76,19 @@ export function detectPlatform(): PlatformDetectionResult {
     }
   }
 
+  // 禁漫天堂：阅读页是 /photo/{id}/，详情页 /album/{id}/（只在阅读页挂载）
+  const isJmHost = /(^|\.)(18comic\.(vip|ink)|jmcomic-zzz\.(one|org)|comic18j-[a-z0-9]+\.(com|work|cc|net))$/i.test(hostname)
+  const isJmReaderPage = /^\/photo\/\d+/i.test(pathname)
+
+  if (isJmHost && isJmReaderPage) {
+    return {
+      platform: Platform.JM,
+      host,
+      pathname,
+      isAlbumPage: true
+    }
+  }
+
   // JoyACG: 作品页是纯数字路径（/096528/）
   const isJoyAcgHost = hostname === 'joyacg.cc' || hostname.endsWith('.joyacg.cc')
     || hostname === 'joyacg.top' || hostname.endsWith('.joyacg.top')

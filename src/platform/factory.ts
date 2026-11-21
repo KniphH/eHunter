@@ -11,6 +11,7 @@ import { NHAlbumServiceImpl } from './nh/service/AlbumServiceImpl'
 import { PixivAlbumServiceImpl } from './pixiv/service/AlbumServiceImpl'
 import { WNACGAlbumServiceImpl } from './wnacg/service/AlbumServiceImpl'
 import { JoyAcgAlbumServiceImpl } from './joyacg/service/AlbumServiceImpl'
+import { JmAlbumServiceImpl } from './jm/service/AlbumServiceImpl'
 import { TestAlbumService } from './test/AlbumService'
 
 /**
@@ -36,6 +37,9 @@ export function createPlatformService(platform: Platform): AlbumService {
 
     case Platform.JOYACG:
       return new JoyAcgAlbumServiceImpl()
+
+    case Platform.JM:
+      return new JmAlbumServiceImpl()
     
     case Platform.TEST:
       return new TestAlbumService('')

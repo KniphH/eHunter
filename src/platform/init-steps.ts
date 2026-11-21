@@ -33,6 +33,12 @@ export const WNACG_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
   { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 4 }
 ]
 
+export const JM_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
+  { id: 'parseImagePageMetadata', label: 'Parse page metadata', order: 1 },
+  { id: 'renderScrambledPages', label: 'Render scrambled pages', order: 2 },
+  { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 3 }
+]
+
 export const JOYACG_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
   { id: 'parseImagePageMetadata', label: 'Parse page metadata', order: 1 },
   { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 2 }

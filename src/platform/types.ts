@@ -18,6 +18,8 @@ export enum Platform {
   WNACG = 'WNACG',
   /** Test platform (localhost, IP addresses) */
   TEST = 'TEST',
+  /** 禁漫天堂（18comic / jmcomic 系列镜像） */
+  JM = 'JM',
   /** JoyACG (joyacg.cc / joyacg.top) */
   JOYACG = 'JOYACG',
   /** 本地文件夹（用户用文件选择器选进来的图片，不走网络） */
