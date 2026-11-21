@@ -179,9 +179,7 @@ watch(() => store.curViewIndex, (newVal, oldVal) => {
 })
 
 function selectVol(volIndex: number) {
-    renderedVolumes.value = [volIndex]
     storeAction.setCurViewIndex(volIndex * store.volumeSize, 'scroll_view_vol')
-    nextTick(() => resetVolumesAroundCurrent())
 }
 
 /*
@@ -254,39 +252,29 @@ async function maybeSlideWindow(position: number): Promise<void> {
     const lastVol = vols[vols.length - 1]
     const total = computedVolumeSum.value
 
-    // 向下：视口接近末尾 → 追加下一卷，丢掉最上面的
+    /*
+     * 向下：视口接近末尾 → **追加**下一卷，不卸载任何已渲染的卷。
+     *
+     * 之前是「追加下一卷 + 丢掉最上面那卷」，靠 scrollTop 补偿来维持视觉位置。
+     * 但补偿量极难算准（padding、重排时机、v-if 摘除元素都会影响），
+     * 实测表现为：第三卷长出来之后一碰底部就被拽回第二卷，
+     * 而且第一二卷再也不回收。与其在补偿上继续试错，不如先只追加：
+     * 滚动位置天然稳定，页码也不会回退。
+     *
+     * 内存这边有另一道闸——activePageIndexes 只让视口附近的页真正持有 <img>，
+     * 所以卸载卷对「图片内存」的收益其实有限，主要省的是 DOM 节点。
+     */
     if (lastVol + 1 < total && position + viewportHeight >= contentBottom - SLIDE_TRIGGER_PX) {
         sliding = true
-        const beforeTop = last.offsetTop
-        renderedVolumes.value = [...vols.slice(1), lastVol + 1]
-        await nextTick()
-        const newContainers = pageContainers.value
-        const newFirst = newContainers && newContainers[0] as HTMLElement | undefined
-        if (newFirst) {
-            // 用「新首元素的位置」反推内容整体上移了多少，比 scrollHeight 差更可靠
-            const shifted = beforeTop - newFirst.offsetTop
-            if (shifted > 0) {
-                scrollView.value.scrollTo(Math.max(0, position - shifted), 0)
-            }
-        }
+        renderedVolumes.value = [...vols, lastVol + 1]
         window.setTimeout(() => { sliding = false }, 300)
         return
     }
 
-    // 向上：视口接近开头 → 在前面补上一卷，丢掉最下面的
+    // 向上：视口接近开头 → 在前面补上一卷（同样不卸载）
     if (firstVol - 1 >= 0 && position <= contentTop + SLIDE_TRIGGER_PX) {
         sliding = true
-        const beforeTop = first.offsetTop
-        renderedVolumes.value = [firstVol - 1, ...vols.slice(0, -1)]
-        await nextTick()
-        const newContainers = pageContainers.value
-        const newFirst = newContainers && newContainers[0] as HTMLElement | undefined
-        if (newFirst) {
-            const added = beforeTop - newFirst.offsetTop
-            if (added < 0) {
-                scrollView.value.scrollTo(position - added, 0)
-            }
-        }
+        renderedVolumes.value = [firstVol - 1, ...vols]
         window.setTimeout(() => { sliding = false }, 300)
     }
 }
