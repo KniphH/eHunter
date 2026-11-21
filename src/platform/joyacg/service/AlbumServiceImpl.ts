@@ -34,8 +34,15 @@ export class JoyAcgAlbumServiceImpl implements AlbumService {
         return false
     }
 
+    /**
+     * 不提供缩略图。
+     *
+     * 缩略图栏一旦展开就固定占 200px；而 joyacg 的图走 wp.com 代理，
+     * 缩略图经常加载不出来，于是变成一条空黑栏，把漫画整体推向右。
+     * 这里直接不提供，侧栏就不会展开，画面自然居中。
+     */
     isSupportThumbView(): boolean {
-        return this.thumbInfos.length > 0
+        return false
     }
 
     getTitle(): string {
@@ -146,14 +153,8 @@ export class JoyAcgAlbumServiceImpl implements AlbumService {
             heightOfWidth: DEFAULT_HEIGHT_OF_WIDTH,
         }))
 
-        this.thumbInfos = sources.map((src, index) => ({
-            id: `joyacg:thumb:${index}`,
-            mode: ThumbMode.IMG,
-            src,
-            style: '',
-            height: 0,
-            width: THUMB_BASE_WIDTH,
-        }))
+        // 不生成缩略图：见 isSupportThumbView 的说明
+        this.thumbInfos = []
     }
 
     private updateInitializationStep(step: InitializationStepUpdate): void {
