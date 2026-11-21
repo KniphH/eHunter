@@ -701,7 +701,13 @@ export const computedVolPreloadPageIndexList = computed(() => {
 
 // the viewport width of AlbumBookView or AlbumScrollView, for calculating the page size of book view
 export const computedAlbumViewportWidth = computed(() => {
-    const showThumb = (store.readingMode == 0 && store.showThumbView) || (store.readingMode == 1 && store.showBookThumbView)
+    /*
+     * 必须和 ReaderView 里 showThumb 的判定完全一致：没有缩略图数据时侧栏根本
+     * 不渲染，这里就不能再从视口宽度里扣掉侧栏宽度。否则书页模式按「视口-200」
+     * 算位置、实际可用区域却是整屏，整组页面就会右移 200px（joyacg 就是这样）。
+     */
+    const showThumb = ((store.readingMode == 0 && store.showThumbView) || (store.readingMode == 1 && store.showBookThumbView))
+        && store.thumbInfos.length > 0
     if (showThumb && store.thumbDockSlot !== 'bottom') {
         return store.viewportWidth - store.thumbViewWidth
     }
@@ -709,7 +715,13 @@ export const computedAlbumViewportWidth = computed(() => {
 })
 
 export const computedAlbumViewportHeight = computed(() => {
-    const showThumb = (store.readingMode == 0 && store.showThumbView) || (store.readingMode == 1 && store.showBookThumbView)
+    /*
+     * 必须和 ReaderView 里 showThumb 的判定完全一致：没有缩略图数据时侧栏根本
+     * 不渲染，这里就不能再从视口宽度里扣掉侧栏宽度。否则书页模式按「视口-200」
+     * 算位置、实际可用区域却是整屏，整组页面就会右移 200px（joyacg 就是这样）。
+     */
+    const showThumb = ((store.readingMode == 0 && store.showThumbView) || (store.readingMode == 1 && store.showBookThumbView))
+        && store.thumbInfos.length > 0
     let height = store.viewportHeight
     if (store.showTopBar) {
         height -= store.topBarHeight

@@ -107,11 +107,54 @@ onMounted(() => {
 @import './style/_doc-scroll';
 
 .ehunter-app {
+    /*
+     * 样式隔离边界。
+     *
+     * 宿主站点（joyacg / 18comic 这些 Bootstrap 站）的全局规则会漏进插件：
+     * 给 div/button/span 设 margin、padding、font、line-height、text-align，
+     * 甚至 box-sizing。之前在单个组件上一条条钉 !important，永远补不完。
+     *
+     * all: initial 把容器自身重置为浏览器默认值，切断所有从宿主继承来的属性
+     * （font / line-height / text-align / direction / color / letter-spacing…），
+     * 再用下面几行显式声明插件真正需要的布局属性。
+     */
+    all: initial !important;
+    direction: ltr !important;
     font-family: PingFang SC, Microsoft YaHei, 微软雅黑, Arial, Hiragino Sans GB, Heiti SC, Droid Sans,
         WenQuanYi Micro Hei, sans-serif !important;
-    display: flex;
-    height: 100%;
-    text-align: initial; // overlay original style
+    font-size: 16px !important;
+    line-height: 1.15 !important;
+    color: #fff !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    height: 100% !important;
+
+    /*
+     * 容器内部：把宿主可能用全局选择器打进来的几个属性也钉住。
+     * 不整体用 all: unset——那会把插件自己所有组件的样式一起废掉，
+     * 只重置这几个跨站点最容易出问题的继承/盒模型属性。
+     */
+    box-sizing: border-box;
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    /*
+     * 容器内部：把宿主可能用全局选择器打进来的几个属性也钉住。
+     * 不整体用 all: unset——那会把插件自己所有组件的样式一起废掉，
+     * 只重置这几个跨站点最容易出问题的继承/盒模型属性。
+     */
+    box-sizing: border-box;
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
 
     section,
     header,

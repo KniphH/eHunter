@@ -1,5 +1,5 @@
 <template>
-    <teleport to=".ehunter-app">
+    <teleport :to="teleportTarget">
         <transition name="slow-opacity-fade" appear>
             <div v-if="store.showMoreSettingsDialog" class="ehunter-more-settings-modal" @click.self="storeAction.closeMoreSettingsDialog">
                 <div class="ehunter-panel" @click.stop="onPanelClick">
@@ -252,6 +252,11 @@
 </template>
 
 <script setup lang="ts">
+import { getMountPoint } from '../store/shadow'
+
+/** teleport 目标必须是元素：选择器穿透不了 shadow 边界 */
+const teleportTarget = computed(() => getMountPoint() || document.body)
+
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import pkgJson from '../../package.json'
 import DropOption from './widget/DropOption.vue'

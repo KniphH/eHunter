@@ -1,4 +1,5 @@
 import { createApp, ref, h } from 'vue'
+import { setMountPoint } from '../core/store/shadow'
 import TestApp from '../core/TestApp.vue'
 import LoadingView from '../core/components/LoadingView.vue'
 import '../core/style/_normalize.scss'
@@ -22,6 +23,20 @@ import { Platform, type InitializationError } from './platform/types'
 // refresh the store (via initAlbumStore), never tear the app down — tearing it down would
 // re-register global listeners and reset the store singleton.
 let ehunterApp: ReturnType<typeof createApp> | null = null
+/**
+ * Shadow DOM 边界。
+ *
+ * 插件以前直接挂在宿主文档上，宿主的全局 CSS（Bootstrap 的 button/div 规则、
+ * 各种 * 选择器）会漏进来，只能一处处打 !important，永远补不完，而且每遇到
+ * 一个新站点就要再适配一次。
+ *
+ * 把 Vue 挂到 Shadow Root 里，宿主样式**完全无法穿透**，插件样式只由自己的
+ * CSS 决定。这是从根上解决，不是逐站适配。
+ */
+let ehunterShadowRoot: ShadowRoot | null = null
+let ehunterShadowMount: HTMLElement | null = null
+
+
 let isMounted = false
 let hostActionsApplied = false
 let hideTimerId: number | null = null
@@ -294,7 +309,22 @@ const ensureMounted = (platform: Platform): HTMLElement => {
       }
     })
 
-    app.mount(`#${EHUNTER_CONTAINER_ID}`)
+    // 建立 shadow 边界并把样式与挂载点放进去
+    if (!ehunterShadowRoot) {
+      ehunterShadowRoot = container.attachShadow({ mode: 'open' })
+      const style = document.createElement('style')
+      style.textContent = String((window as unknown as Record<string, unknown>).__EHUNTER_CSS__ || '')
+      ehunterShadowRoot.appendChild(style)
+
+      ehunterShadowMount = document.createElement('div')
+      ehunterShadowMount.id = 'ehunter-shadow-mount'
+      ehunterShadowMount.style.height = '100%'
+      ehunterShadowMount.style.width = '100%'
+      ehunterShadowRoot.appendChild(ehunterShadowMount)
+      setMountPoint(ehunterShadowMount)
+    }
+
+    app.mount(ehunterShadowMount!)
     ehunterApp = app
     isMounted = true
     mountedPlatform = platform

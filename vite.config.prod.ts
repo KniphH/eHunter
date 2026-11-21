@@ -102,7 +102,20 @@ const prependUserscriptBannerPlugin = (): Plugin => ({
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue(), cssInjectedByJsPlugin(), svgLoader(), prependUserscriptBannerPlugin()],
+  plugins: [vue(), cssInjectedByJsPlugin({
+    /*
+     * 不往 <head> 里插样式：插件跑在 Shadow DOM 里，样式必须在 shadow root
+     * 内才生效，而且这样才能彻底隔绝宿主站点的影响。
+     * 这里只把 CSS 字符串暂存到全局，由 main.ts 在建好 shadow 后写入。
+     */
+    injectCodeFunction: function (cssCode: string) {
+      if (typeof window !== 'object') {
+        return
+      }
+      const w = window as unknown as Record<string, unknown>
+      w.__EHUNTER_CSS__ = String(w.__EHUNTER_CSS__ || '') + cssCode
+    },
+  }), svgLoader(), prependUserscriptBannerPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
