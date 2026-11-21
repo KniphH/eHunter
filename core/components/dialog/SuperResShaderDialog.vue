@@ -32,7 +32,13 @@
                             <li
                                 v-for="(item, index) in fileSummary"
                                 :key="`${item.name}-${index}`"
-                                class="ehunter-superres-item">
+                                :class="['ehunter-superres-item', { 'is-off': !item.enabled }]">
+                                <input
+                                    class="ehunter-superres-check"
+                                    type="checkbox"
+                                    :checked="item.enabled"
+                                    :title="i18n.superResolutionEnable"
+                                    @change="toggleEnabled(index)" />
                                 <span class="ehunter-superres-step">{{ index + 1 }}</span>
                                 <span class="ehunter-superres-name">{{ item.name }}</span>
                                 <span
@@ -99,14 +105,30 @@ const errorText = ref('')
 const cacheSize = ref(superResolutionService.getCacheSize())
 
 const fileSummary = computed(() => files.value.map((file) => {
+    // 缺省视为启用，兼容旧数据
+    const enabled = file.enabled !== false
     try {
-        return { name: file.name, passes: parseShaderFileTexts([file.text]).length }
+        return { name: file.name, passes: parseShaderFileTexts([file.text]).length, enabled }
     } catch (e) {
-        return { name: file.name, passes: 0 }
+        return { name: file.name, passes: 0, enabled }
     }
 }))
 
-const totalPasses = computed(() => fileSummary.value.reduce((sum, item) => sum + item.passes, 0))
+/** 只有启用的文件才计入 pass 总数 */
+const totalPasses = computed(() => fileSummary.value.reduce(
+    (sum, item) => (item.enabled ? sum + item.passes : sum),
+    0,
+))
+
+/** 勾选/取消某个文件。关掉它就不参与执行，用来按内容挑算法 */
+function toggleEnabled(index: number): void {
+    const file = files.value[index]
+    if (!file) {
+        return
+    }
+    file.enabled = file.enabled === false
+    superResolutionService.setShaderFiles(files.value.map(item => ({ ...item })))
+}
 
 /**
  * 一句话把执行顺序摊开：列表从上到下就是实际执行的先后，
@@ -348,6 +370,19 @@ function close(): void {
 }
 
 /* 行与行之间画一小段竖线，让「从上往下依次执行」这件事一眼可见 */
+.ehunter-superres-check {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin: 0 2px 0 0;
+    cursor: pointer;
+}
+
+.ehunter-superres-item.is-off {
+    /* 关掉的算法置灰，但仍留在列表里，随时可以再勾回来 */
+    opacity: 0.45;
+}
+
 .ehunter-superres-item {
     position: relative;
 }

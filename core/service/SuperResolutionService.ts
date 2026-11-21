@@ -27,6 +27,13 @@ import { readScriptValue, writeScriptValue } from './scriptStorage'
 export interface SuperResShaderFile {
     name: string
     text: string
+    /**
+     * 是否参与执行。缺省视为启用（兼容旧数据）。
+     *
+     * 用户需要按内容挑算法：高分辨率图只需要 Restore 锐化，
+     * 一律跑 Upscale x2 反而会把画面拉糊。
+     */
+    enabled?: boolean
 }
 
 export interface SuperResResult {
@@ -746,6 +753,11 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
     return files
 }
 
+/** 只取启用的文件（执行链用） */
+function readActiveShaderFiles(): SuperResShaderFile[] {
+    return readShaderFiles().filter(file => file.enabled !== false)
+}
+
 function readShaderFiles(): SuperResShaderFile[] {
     return normalizeShaderFiles(readScriptValue(STORAGE_KEY))
 }
@@ -881,7 +893,7 @@ class SuperResolutionService {
     }
 
     hasShaders(): boolean {
-        return readShaderFiles().length > 0
+        return readActiveShaderFiles().length > 0
     }
 
     /**
@@ -891,8 +903,8 @@ class SuperResolutionService {
      * 如果这里再读一次，等于每个渲染页都同步读两遍几十 KB 的 shader 配置。
      */
     getSignature(files?: SuperResShaderFile[]): string {
-        const list = files || readShaderFiles()
-        return list.map(file => `${file.name}:${file.text.length}`).join('|')
+        const list = (files || readShaderFiles()).filter(file => file.enabled !== false)
+        return list.map(file => `${file.name}:${file.text.length}:${file.enabled === false ? 0 : 1}`).join('|')
     }
 
     isSupported(): boolean {
@@ -1089,7 +1101,7 @@ class SuperResolutionService {
     }
 
     /** 当前配置的 shader 链，按执行顺序。pass 数解析失败记 0 */
-    describeShaders(): { files: Array<{ name: string, passes: number }>, total: number } {
+    describeShaders(): { files: Array<{ name: string, passes: number, enabled: boolean }>, total: number } {
         const files = readShaderFiles().map((file) => {
             let passes = 0
             try {
@@ -1097,7 +1109,7 @@ class SuperResolutionService {
             } catch (e) {
                 passes = 0
             }
-            return { name: file.name, passes }
+            return { name: file.name, passes, enabled: file.enabled !== false }
         })
         return { files, total: files.reduce((sum, item) => sum + item.passes, 0) }
     }
@@ -1188,7 +1200,7 @@ class SuperResolutionService {
     }
 
     private ensureSlot(workerId = 0): RenderSlot {
-        const files = readShaderFiles()
+        const files = readActiveShaderFiles()
         if (files.length === 0) {
             throw new Error('no_shader_selected')
         }
