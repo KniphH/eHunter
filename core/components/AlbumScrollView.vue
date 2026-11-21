@@ -11,15 +11,13 @@
             :on-scroll-stopped="onScrollStopped" @topIn="storeAction.setTopBar(true)" :listen-scroll="true"
             @topLeave="storeAction.setTopBar(false)">
             <h1>{{ store.albumTitle }}</h1>
-            <Pagination v-if="computedVolumeSum > 1" class="top-pagination" :cur-index="computedCurVolNo - 1"
-                :page-sum="computedVolumeSum" @change="selectVol" />
+
             <div class="page-container" ref="pageContainers" v-for="i of renderedPageIndexList"
                 :key="i"
                 :style="{ 'width': `${store.widthScale}%`, 'padding-bottom': `${store.widthScale * storeAction.getImgPageHeightOfWidth(i)}%`, 'margin': `${store.scrollPageMargin}px auto` }">
-                <PageView :index="i" :active="nearbyIndexList.indexOf(i) > -1"/>
+                <PageView :index="i" :active="activePageIndexes.has(i)"/>
             </div>
-            <Pagination v-if="computedVolumeSum > 1" class="bottom-pagination" :cur-index="computedCurVolNo - 1"
-                :page-sum="computedVolumeSum" @change="selectVol" />
+
         </awesome-scroll-view>
     </div>
 </template>
@@ -50,6 +48,8 @@ function onScrollStopped(position: number) {
 
 // watch scrollPosition to calculate curIndex
 watch(scrollPosition, position => {
+    // 视口变了就要重新决定哪些页该加载
+    updateActivePageIndexes()
     void maybeSlideWindow(position)
     if (!pageContainers.value) {
         return
@@ -118,6 +118,43 @@ onMounted(() => {
 })
 
 // return a indexes array. the index is index of page, determining the show of pages.
+/*
+ * 哪些页真正需要加载。
+ *
+ * 早先用「curViewIndex ± loadNum」算，但相邻卷的页完全不在这个区间里，
+ * 于是 v-if 直接把它们摘掉——表现为「第三卷根本没加载出来」。
+ * 改成按元素实际位置和视口比较：视口上下各留一屏的余量。
+ */
+const activePageIndexes = ref<Set<number>>(new Set())
+
+function updateActivePageIndexes(): void {
+    const containers = pageContainers.value
+    if (!containers || containers.length === 0) {
+        return
+    }
+    const scroller = scrollView.value?.$el as HTMLElement | undefined
+    const viewportHeight = scroller && scroller.clientHeight ? scroller.clientHeight : window.innerHeight
+    const position = scrollPosition.value
+    const indexes = renderedPageIndexList.value
+    const next = new Set<number>()
+    for (let i = 0; i < containers.length; i++) {
+        const element = containers[i] as HTMLElement
+        if (!element) {
+            continue
+        }
+        const top = element.offsetTop
+        const bottom = top + element.offsetHeight
+        // 视口范围上下各留一屏
+        if (bottom > position - viewportHeight && top < position + viewportHeight * 2) {
+            const pageIndex = indexes[i]
+            if (pageIndex !== undefined) {
+                next.add(pageIndex)
+            }
+        }
+    }
+    activePageIndexes.value = next
+}
+
 const nearbyIndexList = computed(() => {
     let start = store.curViewIndex - store.loadNum
     if (start < 0) {
@@ -170,6 +207,11 @@ const renderedPageIndexList = computed(() => {
     return result
 })
 
+watch(renderedPageIndexList, () => {
+    // 卷窗口变了，新卷的页要按当前视口重新判定
+    nextTick(() => updateActivePageIndexes())
+})
+
 /** 用「当前卷 - 1」起步，保证上下都有余量 */
 function resetVolumesAroundCurrent(): void {
     const cur = Math.max(0, computedCurVolNo.value - 1)
@@ -215,13 +257,16 @@ async function maybeSlideWindow(position: number): Promise<void> {
     // 向下：视口接近末尾 → 追加下一卷，丢掉最上面的
     if (lastVol + 1 < total && position + viewportHeight >= contentBottom - SLIDE_TRIGGER_PX) {
         sliding = true
-        const beforeHeight = scroller ? scroller.scrollHeight : 0
+        const beforeTop = last.offsetTop
         renderedVolumes.value = [...vols.slice(1), lastVol + 1]
         await nextTick()
-        if (scroller && beforeHeight > 0) {
-            const removed = beforeHeight - scroller.scrollHeight
-            if (removed > 0) {
-                scrollView.value.scrollTo(Math.max(0, position - removed), 0)
+        const newContainers = pageContainers.value
+        const newFirst = newContainers && newContainers[0] as HTMLElement | undefined
+        if (newFirst) {
+            // 用「新首元素的位置」反推内容整体上移了多少，比 scrollHeight 差更可靠
+            const shifted = beforeTop - newFirst.offsetTop
+            if (shifted > 0) {
+                scrollView.value.scrollTo(Math.max(0, position - shifted), 0)
             }
         }
         window.setTimeout(() => { sliding = false }, 300)
@@ -231,13 +276,15 @@ async function maybeSlideWindow(position: number): Promise<void> {
     // 向上：视口接近开头 → 在前面补上一卷，丢掉最下面的
     if (firstVol - 1 >= 0 && position <= contentTop + SLIDE_TRIGGER_PX) {
         sliding = true
-        const beforeHeight = scroller ? scroller.scrollHeight : 0
+        const beforeTop = first.offsetTop
         renderedVolumes.value = [firstVol - 1, ...vols.slice(0, -1)]
         await nextTick()
-        if (scroller && beforeHeight > 0) {
-            const added = scroller.scrollHeight - beforeHeight
-            if (added > 0) {
-                scrollView.value.scrollTo(position + added, 0)
+        const newContainers = pageContainers.value
+        const newFirst = newContainers && newContainers[0] as HTMLElement | undefined
+        if (newFirst) {
+            const added = beforeTop - newFirst.offsetTop
+            if (added < 0) {
+                scrollView.value.scrollTo(position - added, 0)
             }
         }
         window.setTimeout(() => { sliding = false }, 300)
