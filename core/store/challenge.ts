@@ -35,10 +35,25 @@ export const challengeState = reactive({
  * 父窗口就一直等到超时——表现就是「能验证，但窗口不关」。
  * URL 参数在同源跳转中会保留。
  */
-export const VERIFY_MARK_PARAM = 'ehunter-verify'
+/**
+ * 「刚打开过验证窗口」的标记键。
+ *
+ * 不用 window.name（跨域导航后会被清空），也不用 URL 参数
+ * （带 query 的首页会让 Cloudflare 反复挑战）。
+ * sessionStorage 同源共享，窗口内脚本读得到。
+ */
+export const VERIFY_POPUP_KEY = 'ehunter:verify-popup-at'
 
 const NOTIFY_COOLDOWN_MS = 60_000
-let lastNotifiedAt = 0
+/** 冷却时间戳持久化到 sessionStorage：页面刷新后不该重新允许弹窗 */
+const COOLDOWN_KEY = 'ehunter:cf-notify-at'
+let lastNotifiedAt = (() => {
+    try {
+        return Number(window.sessionStorage.getItem(COOLDOWN_KEY) || 0) || 0
+    } catch {
+        return 0
+    }
+})()
 
 /** 弹出的验证窗口（保留引用才能读它的页面状态、才能关掉它） */
 let verifyWindow: Window | null = null
@@ -138,19 +153,26 @@ function openVerifyWindow(): void {
      * 而且用户本来就在那一页，原页面自己会重试，不需要再开一个。
      */
     /*
-     * 带一个标记参数。window.name 在跨域导航后会被浏览器清空，
-     * 而 Cloudflare 验证正好会跳到 challenges.cloudflare.com 再跳回来，
-     * 结果验证窗口里的脚本认不出自己，永远不写「已完成」信号。
-     * URL 参数在同源跳转时会被保留，用它更可靠。
+     * 必须打开**干净的首页**，不要加任何 query。
+     * 试过加 ?ehunter-verify=1 作为标记，结果带参数的首页会让 Cloudflare
+     * 走另一条处理路径，出现「验证 → 跳回 → 又验证」的循环，
+     * 用户看到的就是「点了确认它自己又刷新一遍」。
+     * 窗口身份改由 sessionStorage 记录，不污染 URL。
      */
     let target = location.origin
     try {
-        const url = new URL('/', location.origin)
-        url.searchParams.set(VERIFY_MARK_PARAM, '1')
-        target = url.href
+        target = new URL('/', location.origin).href
     } catch {
         // 保持 location.origin
     }
+    // 记下「验证窗口是我们开的」：窗口内脚本通过这个标记认出自己，
+    // 不依赖 window.name（跨域会丢），也不污染 URL
+    try {
+        window.sessionStorage.setItem(VERIFY_POPUP_KEY, String(Date.now()))
+    } catch {
+        // 忽略
+    }
+
     const width = 520
     const height = 700
     const left = Math.max(0, Math.round((window.screen.width - width) / 2))
@@ -310,6 +332,16 @@ export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
         return false
     }
     lastNotifiedAt = now
+    try {
+        window.sessionStorage.setItem(COOLDOWN_KEY, String(now))
+    } catch {
+        // 忽略
+    }
+    try {
+        window.sessionStorage.setItem(COOLDOWN_KEY, String(now))
+    } catch {
+        // 忽略
+    }
 
     /*
      * 这里**不做**前置探测。

@@ -67,8 +67,8 @@ const EHUNTER_SWITCH_ID = 'ehunter-switch'
 const EHUNTER_CONTAINER_ID = 'ehunter-app'
 /** 验证窗口的 window.name，和 challenge store 里保持一致 */
 const VERIFY_WINDOW_NAME = 'ehunter-cf-verify'
-/** 验证窗口的 URL 标记参数，与 challenge store 保持一致 */
-const VERIFY_MARK_PARAM = 'ehunter-verify'
+/** 「刚打开过验证窗口」的标记键，与 challenge store 保持一致 */
+const VERIFY_POPUP_KEY = 'ehunter:verify-popup-at'
 /** 验证窗口写、父窗口读的 localStorage 键 */
 const VERIFY_READY_KEY = 'ehunter:verify-ready'
 const EHUNTER_OPEN_DURATION_MS = 720
@@ -611,19 +611,34 @@ function installSpaNavigationWatcher(): void {
  */
 function isVerifyPopup(): boolean {
   /*
-   * 优先看 URL 参数：window.name 在跨域导航后会失效。
-   * Cloudflare 的验证会跳到 challenges.cloudflare.com 再跳回来，
-   * 回来时 name 已经空了，脚本认不出自己是验证窗口，于是不写完成信号，
-   * 父窗口就一直等下去——这就是「能验证但窗口不关」的原因。
+   * 识别「这是验证小窗」的三条线索，任一成立即可：
+   *   1. window.name —— 同源跳转时保留（跨域会丢）
+   *   2. sessionStorage 里「刚开过验证窗口」的标记 —— 跨域也能读到
+   *   3. 有 opener 且当前是首页 —— 普通浏览几乎不会命中
+   *
+   * 不能用 URL 参数：带 query 的首页会让 Cloudflare 反复挑战。
    */
+  if (window.name === VERIFY_WINDOW_NAME) {
+    return true
+  }
   try {
-    if (new URLSearchParams(location.search).has(VERIFY_MARK_PARAM)) {
-      return true
+    const markedAt = Number(window.sessionStorage.getItem(VERIFY_POPUP_KEY) || 0)
+    if (markedAt > 0 && Date.now() - markedAt < 10 * 60 * 1000) {
+      const hasOpener = (() => {
+        try {
+          return window.opener !== null
+        } catch {
+          return false
+        }
+      })()
+      if (hasOpener || window.name !== '') {
+        return true
+      }
     }
   } catch {
-    // 解析失败就退回 name 判断
+    // 忽略
   }
-  return window.name === VERIFY_WINDOW_NAME
+  return false
 }
 
 /**
