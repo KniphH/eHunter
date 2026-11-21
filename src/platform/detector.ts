@@ -76,6 +76,20 @@ export function detectPlatform(): PlatformDetectionResult {
     }
   }
 
+  // JoyACG: 作品页是纯数字路径（/096528/）
+  const isJoyAcgHost = hostname === 'joyacg.cc' || hostname.endsWith('.joyacg.cc')
+    || hostname === 'joyacg.top' || hostname.endsWith('.joyacg.top')
+  const isJoyAcgAlbumPage = /^\/\d+\/?$/.test(pathname)
+
+  if (isJoyAcgHost && isJoyAcgAlbumPage) {
+    return {
+      platform: Platform.JOYACG,
+      host,
+      pathname,
+      isAlbumPage: true
+    }
+  }
+
   // Test platform: localhost or IP addresses
   if (isTestEnvironmentHost(host)) {
     return {

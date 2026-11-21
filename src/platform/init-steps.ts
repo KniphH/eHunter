@@ -33,6 +33,11 @@ export const WNACG_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
   { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 4 }
 ]
 
+export const JOYACG_INITIALIZATION_STEPS: InitializationStepDefinition[] = [
+  { id: 'parseImagePageMetadata', label: 'Parse page metadata', order: 1 },
+  { id: 'extractImagePagesAndThumbnails', label: 'Extract image pages and thumbnails', order: 2 }
+]
+
 export function createStepMap(
   stepDefinitions: InitializationStepDefinition[]
 ): Record<string, InitializationStepDefinition> {

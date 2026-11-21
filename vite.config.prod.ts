@@ -26,9 +26,17 @@ const userscriptBanner = `// ==UserScript==
 // @match        https://pixiv.net/*
 // @match        https://wnacg.com/*
 // @match        https://*.wnacg.com/*
+// @match        https://joyacg.cc/*
+// @match        https://joyacg.top/*
 // @connect      hath.network
 // @connect      nhentai.net
 // @connect      wnacg.com
+// @connect      joyacg.cc
+// @connect      joyacg.top
+// @connect      i0.wp.com
+// @connect      i1.wp.com
+// @connect      i2.wp.com
+// @connect      i3.wp.com
 // @connect      qy0.ru
 // @connect      www.pixiv.net
 // @connect      pixiv.net
