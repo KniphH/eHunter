@@ -100,7 +100,8 @@ export class WNACGAlbumServiceImpl implements AlbumService {
     })
 
     try {
-      const aidMatch = window.location.pathname.match(/aid-(\d+)/)
+      // 两种阅读页路径都带 aid 或 view-id 后的数字
+      const aidMatch = window.location.pathname.match(/(?:aid|view-id)-(\d+)/)
       if (!aidMatch) {
         throw new Error('Album id not found in url')
       }
@@ -116,7 +117,27 @@ export class WNACGAlbumServiceImpl implements AlbumService {
         )
       )
 
-      this.imgListItems = await this.fetchImgList()
+      /*
+       * photos-view-id-* 是「整本视图」：图片直接排在页面里，
+       * 服务器不提供 photos-item-aid-*.html 列表（请求会 404）。
+       * 这类页面从 DOM 取图；photos-slide-aid-* 才走那个列表脚本。
+       */
+      const isViewMode = /\/photos-view-id-/.test(window.location.pathname)
+      if (isViewMode) {
+        this.imgListItems = this.collectItemsFromDom()
+        if (this.imgListItems.length === 0) {
+          throw new Error('No images found on this page.')
+        }
+        this.updateInitializationStep(
+          createStepUpdate(
+            this.initializationStepMap.fetchImageList,
+            'success',
+            `${this.imgListItems.length} pages (from page)`
+          )
+        )
+      } else {
+        this.imgListItems = await this.fetchImgList()
+      }
       this.pageCount = this.imgListItems.length
       this.imgListRefreshedAt = Date.now()
       this.updateInitializationStep(
@@ -156,6 +177,44 @@ export class WNACGAlbumServiceImpl implements AlbumService {
       this.failCurrentInitializationStep(reason)
       return error instanceof Error ? error : new Error(String(error))
     }
+  }
+
+  /**
+   * 整本视图（photos-view-id-*）从页面里直接收集图片。
+   *
+   * 这类页面服务器不提供 photos-item-aid-*.html 列表（请求 404），
+   * 图片直接排在页面里。缩略图/大图可能挂在 data-original / data-src 上，
+   * 所以几个属性都看，只收像图片的地址。
+   */
+  private collectItemsFromDom(): Array<WnacgImgListItem> {
+    const result: Array<WnacgImgListItem> = []
+    const seen = new Set<string>()
+    const nodes = Array.from(document.querySelectorAll('img, a'))
+    for (const node of nodes) {
+      const raw = node.getAttribute('data-original')
+        || node.getAttribute('data-src')
+        || node.getAttribute('src')
+        || node.getAttribute('href')
+        || ''
+      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) {
+        continue
+      }
+      if (!/\.(jpe?g|png|webp|gif)(\?|$)/i.test(raw)) {
+        continue
+      }
+      let absolute = raw
+      try {
+        absolute = raw.startsWith('//') ? `https:${raw}` : new URL(raw, location.href).href
+      } catch {
+        continue
+      }
+      if (seen.has(absolute)) {
+        continue
+      }
+      seen.add(absolute)
+      result.push({ url: absolute, width: 0, height: 0 })
+    }
+    return result
   }
 
   private async fetchImgList(noCache = false): Promise<Array<WnacgImgListItem>> {

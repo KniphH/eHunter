@@ -65,13 +65,12 @@ export function detectPlatform(): PlatformDetectionResult {
 
   const isWnacgHost = /(^|\.)wnacg\.(com|ru|net|org)$/i.test(hostname)
   /**
-   * 只认真正的阅读页：photos-slide-aid-{id}.html。
-   *
-   * photos-view-id-{id}.html 是**章节列表页**（整页只有封面和章节入口，
-   * 没有 photos-item 图片列表），把它当阅读页解析必然 404。
-   * 用户从列表页点进某个章节，落到 slide-aid 页面，插件才会接管。
+   * wnacg 的阅读页有两种路径：
+   *   photos-slide-aid-{id}.html   滑动阅读，图片列表在 photos-item-aid-{id}.html
+   *   photos-view-id-{id}.html     整本视图，图片直接排在页面里，没有 item 列表
+   * 两者都是阅读页，只是取图方式不同。
    */
-  const isWnacgReaderPage = /^\/photos-slide-aid-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
+  const isWnacgReaderPage = /^\/photos-(?:slide-aid|view-id)-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
 
   // WNACG platform: reader page only
   if (isWnacgHost && isWnacgReaderPage) {
