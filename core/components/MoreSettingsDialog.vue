@@ -314,10 +314,14 @@ const openedShortcutDropdown = ref<ShortcutActionId | ''>('')
 const superResDialogActive = ref(false)
 const superResFiles = ref(superResolutionService.getShaderFiles())
 
+watch(() => store.superResShaderVersion, () => {
+    // 勾选/排序/增删后重新读一次，摘要和列表都跟着更新
+    superResFiles.value = superResolutionService.getShaderFiles()
+})
+
 const superResSummary = computed(() => {
-    // 依赖版本号：算法勾选/排序变化后要重新读一遍，否则按钮上的文字不更新
     void store.superResShaderVersion
-    const files = superResolutionService.getShaderFiles()
+    const files = superResFiles.value
     if (files.length === 0) {
         return i18n.value.superResolutionConfigure
     }

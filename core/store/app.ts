@@ -1201,15 +1201,51 @@ export const storeAction = {
      * 旧逻辑会直接跳过，用户看到的就是「取消勾选倍率之后画面还是放大的」。
      * 这里先把 displaySrc 清掉退回原图，再统一补跑。
      */
+    /**
+     * 算法勾选变化后重算。
+     *
+     * 本质就是「关掉超分、再打开」：先把已超分的页退回原图并清空缓存，
+     * 再按新算法重新出一遍。走的是和 setSuperResEncode 相同的路径——
+     * 只重跑**当前显示着超分结果**的页，不去碰整本。
+     */
+    /**
+     * 算法勾选变化后重算。
+     *
+     * 本质就是「关掉超分、再打开」：先把已超分的页退回原图并清空缓存，
+     * 再按新算法重新出一遍。走的是和 setSuperResEncode 相同的路径——
+     * 只重跑**当前显示着超分结果**的页，不去碰整本。
+     */
     refreshSuperResAfterShaderChange: () => {
-        // 先让摘要之类的依赖项失效，即便超分关着也要刷新列表展示
         store.superResShaderVersion++
         if (!store.superResEnabled) {
             return
         }
-        store.imgPageInfos.forEach(info => {
-            info.displaySrc = ''
+        // 1. 收集当前正显示超分结果的页
+        const indexes: number[] = []
+        store.imgPageInfos.forEach((info, index) => {
+            if (info.displaySrc) {
+                indexes.push(index)
+            }
         })
+        // 2. 全部退回原图
+        indexes.forEach(index => storeAction.setImgPageInfoDisplaySrc(index, ''))
+        // 3. 清掉旧算法产出的缓存
+        superResolutionService.clearCache()
+        // 4. 按新算法重新出图
+        const center = store.curViewIndex
+        indexes.forEach(index => {
+            const originalSrc = store.imgPageInfos[index]?.src
+            if (!originalSrc) {
+                return
+            }
+            void superResolutionService.resolve(originalSrc, superResPriority(index, center)).then((upgraded) => {
+                if (!store.superResEnabled || !upgraded || upgraded === originalSrc) {
+                    return
+                }
+                storeAction.setImgPageInfoDisplaySrc(index, upgraded)
+            })
+        })
+        // 5. 还没超分但已加载的页，按新算法补跑
         upgradeAllLoadedPages()
     },
     refreshSuperResPages: () => {
