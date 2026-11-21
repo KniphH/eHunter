@@ -141,16 +141,16 @@ export class JoyAcgAlbumServiceImpl implements AlbumService {
         return text.replace(/\s*[-|]\s*JoyACG\s*$/i, '').trim()
     }
 
-    private buildPageInfos(sources: string[]): void {
-        this.imgPageInfos = sources.map((src, index) => ({
+    private buildPageInfos(sources: Array<{ src: string, heightOfWidth: number }>): void {
+        this.imgPageInfos = sources.map((item, index) => ({
             id: `joyacg:${index}`,
             index,
             pageUrl: location.href,
-            src,
+            src: item.src,
             thumbHeight: 0,
             thumbWidth: 0,
             thumbStyle: '',
-            heightOfWidth: DEFAULT_HEIGHT_OF_WIDTH,
+            heightOfWidth: item.heightOfWidth,
         }))
 
         // 不生成缩略图：见 isSupportThumbView 的说明
@@ -179,8 +179,8 @@ export class JoyAcgAlbumServiceImpl implements AlbumService {
  * 只认 nhentai gallery 的路径：站点自己的图标、二维码、以及其它 wp.com 代理的
  * 广告图都在同一批 <img> 里，不加这个过滤会把它们当成漫画页。
  */
-function collectImageSources(): string[] {
-    const result: string[] = []
+function collectImageSources(): Array<{ src: string, heightOfWidth: number }> {
+    const result: Array<{ src: string, heightOfWidth: number }> = []
     const seen = new Set<string>()
     const imgs = Array.from(document.querySelectorAll('img'))
     for (const img of imgs) {
@@ -194,7 +194,43 @@ function collectImageSources(): string[] {
             continue
         }
         seen.add(src)
-        result.push(src)
+        result.push({ src, heightOfWidth: readHeightOfWidth(img) })
     }
     return result
+}
+
+/**
+ * 读出这张图的高宽比（height / width）。
+ *
+ * 之前所有页都写死 1.4，而实际常见的是 1807/1280 = 1.4117，
+ * 差 0.8%——放大到整屏就是肉眼可见的「被拉宽一点点」。
+ * 用真实尺寸画，缩放才等比。
+ */
+function readHeightOfWidth(img: HTMLImageElement): number {
+    const ratio = (w: number, h: number): number => (w > 0 && h > 0 ? h / w : 0)
+
+    // 1. 元素属性
+    const attrRatio = ratio(Number(img.getAttribute('width')), Number(img.getAttribute('height')))
+    if (attrRatio > 0) {
+        return attrRatio
+    }
+
+    // 2. 已解码的图片
+    const naturalRatio = ratio(img.naturalWidth, img.naturalHeight)
+    if (naturalRatio > 0) {
+        return naturalRatio
+    }
+
+    // 3. 行内 / 计算样式里的 aspect-ratio
+    const inlineAspect = img.style.aspectRatio
+    const computedAspect = inlineAspect || (typeof getComputedStyle === 'function' ? getComputedStyle(img).aspectRatio : '')
+    if (computedAspect && computedAspect.includes('/')) {
+        const [w, h] = computedAspect.split('/').map(part => Number(part.trim()))
+        const styleRatio = ratio(w, h)
+        if (styleRatio > 0) {
+            return styleRatio
+        }
+    }
+
+    return DEFAULT_HEIGHT_OF_WIDTH
 }
