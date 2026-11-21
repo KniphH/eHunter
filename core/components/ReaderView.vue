@@ -237,25 +237,50 @@ div {
         }
     }
     
+    /*
+     * 右下角这一条（页码 + 放大）同样会被宿主的全局样式影响：
+     * 18comic / joyacg 这类 Bootstrap 站点会给 div / span 设字体、行高、
+     * 甚至 background，导致黑底没了、字号不对、间距错乱。
+     * 这里和全屏按钮一样，把关键属性全部钉死。
+     */
     > .status-pannel {
-        z-index: 10000;
-        position: absolute;
-        bottom: 0;
-        right: 0;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        opacity: 0.5;
-        background-color: black;
-        padding: 3px 5px;
-        gap: 3px;
+        z-index: 10000 !important;
+        position: absolute !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        opacity: 0.5 !important;
+        background-color: black !important;
+        background-image: none !important;
+        padding: 3px 5px !important;
+        margin: 0 !important;
+        gap: 3px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        width: auto !important;
+        height: auto !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        line-height: 1 !important;
+        text-align: left !important;
+        overflow: visible !important;
+        pointer-events: auto !important;
         > .progress {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            font-size: 11px;
-            line-height: 11px;
-            color: white
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            font-size: 11px !important;
+            line-height: 11px !important;
+            color: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            font-weight: normal !important;
+            letter-spacing: normal !important;
+            white-space: nowrap !important;
         }
         /*
          * 宿主站点会对 <button> 施加全局样式（Bootstrap 的边框/内边距/字体、

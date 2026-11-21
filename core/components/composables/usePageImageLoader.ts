@@ -69,7 +69,7 @@ const MAX_ASPECT_DEVIATION = 3
  * 倒计时会显示在失败提示里——是显式的，不是偷偷重试。
  * 用户手动点「刷新 / 换源 / 原图」会立即重置这套节奏。
  */
-const AUTO_RETRY_DELAYS = [10, 30, 90, 300]
+const AUTO_RETRY_DELAYS = [1, 1, 2, 3, 5, 5]
 
 export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     const { index, albumService, imgPageInfo, warmMagnifierSource, isActive, getImgElement } = options
