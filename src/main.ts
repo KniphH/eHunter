@@ -323,9 +323,13 @@ const toggleEHunterView = (show: boolean): void => {
     // 触屏设备走文档滚动：阅读器回到文档流，根滚动器接管滚动，
     // 地址栏才会跟着收起。桌面保持原来的 fixed 全屏层。
     if (!enableDocumentScroll()) {
+        // 只锁 body 不够：宿主页面的滚动容器可能在 html 上，
+        // 右侧那条滚动条会留着、还能拖，但拖动对插件没有任何作用。
+        document.documentElement.style.overflow = 'hidden'
         document.body.style.overflow = 'hidden'
     }
   } else {
+    document.documentElement.style.overflow = ''
     document.body.style.overflow = ''
     disableDocumentScroll()
   }

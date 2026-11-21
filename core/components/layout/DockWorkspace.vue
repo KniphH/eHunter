@@ -1,6 +1,11 @@
 <template>
   <div ref="rootRef" class="dock-workspace" :class="`slot-${thumbSlot}`">
-    <div v-show="thumbSlot === 'left' || thumbSlot === 'right'" class="thumb-panel side" :class="{ collapsed: !showThumb }" :style="sideThumbStyle">
+    <!--
+      折叠时必须连宽度一起消失。原来只把 opacity 归零，宽度仍占着
+      thumbSizePx（实测 200px），整块内容被推向右——表现就是「窗口越宽、
+      画面越偏右」，而窗口化到某个宽度以下看起来又正常。
+    -->
+    <div v-show="(thumbSlot === 'left' || thumbSlot === 'right') && showThumb" class="thumb-panel side" :class="{ collapsed: !showThumb }" :style="sideThumbStyle">
       <slot name="thumb"></slot>
     </div>
 
@@ -260,6 +265,10 @@ defineExpose({
   &.collapsed {
     opacity: 0;
     pointer-events: none;
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
   }
   &.side {
     height: 100%;
