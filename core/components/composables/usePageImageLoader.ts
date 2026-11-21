@@ -788,6 +788,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         if (e && isStaleEvent(e)) {
             return
         }
+        syncHeightOfWidthFromImage()
         const hasWaiter = pendingSettle !== null
         if (!settlePending(true)) {
             // 这张不是这一页的图（比例对不上），不能算加载成功，交回会话继续换源
@@ -883,6 +884,33 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             window.clearInterval(superResRetryTimer)
             superResRetryTimer = 0
         }
+    }
+
+    /**
+     * 用图片的真实像素修正这一页的高宽比。
+     *
+     * 书页模式按「高度 = 宽度 × heightOfWidth」排布，并让 img 填满容器；
+     * 比例只要比真实值小一点，图就会被横向拉伸（joyacg / wnacg / 禁漫都栽在这）。
+     *
+     * 各平台在 init 阶段往往拿不到尺寸（懒加载、签名图、scramble 图都还没有像素），
+     * 与其在每个平台上各写一套探测，不如在这里统一兜底：**图片一加载出来**就用
+     * naturalWidth/naturalHeight 覆盖。这样任何平台、以后新增的平台都自动生效。
+     */
+    function syncHeightOfWidthFromImage(): void {
+        const img = getImgElement()
+        if (!img || !img.naturalWidth || !img.naturalHeight) {
+            return
+        }
+        const ratio = img.naturalHeight / img.naturalWidth
+        const info = store.imgPageInfos[index]
+        if (!info || !Number.isFinite(ratio) || ratio <= 0) {
+            return
+        }
+        // 差异小于 0.1% 就不动，避免无意义的响应式更新
+        if (Math.abs(info.heightOfWidth - ratio) / ratio < 0.001) {
+            return
+        }
+        info.heightOfWidth = ratio
     }
 
     /** 这页在窗口内、已加载、但还没超分时，安排一次原地重试 */
