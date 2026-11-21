@@ -13,7 +13,7 @@
             <h1>{{ store.albumTitle }}</h1>
             <Pagination v-if="computedVolumeSum > 1" class="top-pagination" :cur-index="computedCurVolNo - 1"
                 :page-sum="computedVolumeSum" @change="selectVol" />
-            <div class="page-container" ref="pageContainers" v-for="i of computedVolPageIndexList"
+            <div class="page-container" ref="pageContainers" v-for="i of renderedPageIndexList"
                 :key="i"
                 :style="{ 'width': `${store.widthScale}%`, 'padding-bottom': `${store.widthScale * storeAction.getImgPageHeightOfWidth(i)}%`, 'margin': `${store.scrollPageMargin}px auto` }">
                 <PageView :index="i" :active="nearbyIndexList.indexOf(i) > -1"/>
@@ -50,7 +50,7 @@ function onScrollStopped(position: number) {
 
 // watch scrollPosition to calculate curIndex
 watch(scrollPosition, position => {
-    maybeSwitchVolume(position)
+    void maybeSlideWindow(position)
     if (!pageContainers.value) {
         return
     }
@@ -68,9 +68,9 @@ watch(scrollPosition, position => {
             const found = reversed.find((item: HTMLElement) =>
                 item.getBoundingClientRect().top + window.scrollY <= viewportBottom)
             const result = found ? cons.indexOf(found) : cons.length - 1
-            index = result + computedVolFirstIndex.value
+            index = renderedPageIndexList.value[result] ?? 0
         } else {
-            index = computedVolFirstIndex.value
+            index = renderedPageIndexList.value[0] ?? 0
         }
     } else if (scrollPosition.value !== 0) {
         // avoiding that in the top, page 1 and page 2 show at the same time, the index is 1
@@ -79,9 +79,10 @@ watch(scrollPosition, position => {
             _cons.find(item => item.offsetTop <= scrollPosition.value + window.innerHeight)
         );
         const volIndex = result === -1 ? pageContainers.value.length - 1 : result
-        index = volIndex + computedVolFirstIndex.value
+        // 同时渲染多卷，局部下标要映射回真实页号
+        index = renderedPageIndexList.value[volIndex] ?? 0
     } else {
-        index = computedVolFirstIndex.value
+        index = renderedPageIndexList.value[0] ?? 0
     }
     if (index !== store.curViewIndex) {
         storeAction.setCurViewIndex(index, updater)
@@ -110,6 +111,7 @@ async function scrollToCurIndex() {
 }
 
 onMounted(() => {
+    resetVolumesAroundCurrent()
     setTimeout(() => {
         scrollToCurIndex()
     }, 200)
@@ -140,53 +142,105 @@ watch(() => store.curViewIndex, (newVal, oldVal) => {
 })
 
 function selectVol(volIndex: number) {
+    renderedVolumes.value = [volIndex]
     storeAction.setCurViewIndex(volIndex * store.volumeSize, 'scroll_view_vol')
+    nextTick(() => resetVolumesAroundCurrent())
 }
 
 /*
- * 卷的自动衔接。
+ * 两卷窗口。
  *
- * 一次只渲染当前卷（computedVolPageIndexList），所以「滑出窗口就卸载」是天然的，
- * 不需要额外的卸载逻辑。这里只补两件事：
- *   - 滑到本卷底部 → 自动进入下一卷（相当于把「手动点分页」变成滚动续接）
- *   - 滑回本卷顶部 → 自动回到上一卷（用户往回翻时的对称行为）
+ * 用户要的效果：往下滚时新内容从下面长出来、上面的卷收缩掉；往上滚时反过来。
+ * 必须同时存在两卷，否则「滑到底」那一刻目标卷还没渲染，只能整卷替换，
+ * 视觉上就是「瞬移到下一卷第一页」。
  *
- * 为什么底部要「碰到就接」而顶部要「顶到头才接」：
- * 向前阅读是主流，提前一屏接上下一卷可以让滚动不中断；
- * 往回读是少数情况，等真顶到顶部再接就够了，否则一进来就会误触发。
+ * 卸载上方卷时必须补偿 scrollTop，否则内容一消失，视口会瞬间往下窜一整个卷的高度。
  */
-const AUTO_VOL_EDGE_PX = 40
-let switchingVolume = false
+const renderedVolumes = ref<number[]>([])
 
-function maybeSwitchVolume(position: number) {
+/** 当前渲染的页（按已加载的卷展开） */
+const renderedPageIndexList = computed(() => {
+    const result: number[] = []
+    for (const vol of renderedVolumes.value) {
+        const startIndex = vol * store.volumeSize
+        for (let i = startIndex; i < startIndex + store.volumeSize && i < store.pageCount; i++) {
+            result.push(i)
+        }
+    }
+    return result
+})
+
+/** 用「当前卷 - 1」起步，保证上下都有余量 */
+function resetVolumesAroundCurrent(): void {
+    const cur = Math.max(0, computedCurVolNo.value - 1)
+    const total = computedVolumeSum.value
+    const list = [cur]
+    if (cur + 1 < total) {
+        list.push(cur + 1)
+    }
+    if (cur - 1 >= 0) {
+        list.unshift(cur - 1)
+    }
+    renderedVolumes.value = list
+}
+
+const SLIDE_TRIGGER_PX = 200
+let sliding = false
+
+/**
+ * 窗口滑动：向下滚到底部时接下一卷并丢掉最上面的卷，向上滚到顶时反向。
+ */
+async function maybeSlideWindow(position: number): Promise<void> {
     const containers = pageContainers.value
-    if (!containers || containers.length === 0 || switchingVolume) {
+    if (!containers || containers.length === 0 || sliding) {
+        return
+    }
+    const first = containers[0] as HTMLElement
+    const last = containers[containers.length - 1] as HTMLElement
+    if (!first || !last) {
         return
     }
     const scroller = scrollView.value?.$el as HTMLElement | undefined
     const viewportHeight = scroller && scroller.clientHeight ? scroller.clientHeight : window.innerHeight
-
-    const last = containers[containers.length - 1] as HTMLElement
-    if (!last) {
-        return
-    }
+    const contentTop = first.offsetTop
     const contentBottom = last.offsetTop + last.offsetHeight
+    const vols = renderedVolumes.value
+    if (vols.length === 0) {
+        return
+    }
+    const firstVol = vols[0]
+    const lastVol = vols[vols.length - 1]
+    const total = computedVolumeSum.value
 
-    // 底部：碰到本卷最后一张的下沿 → 接下一卷
-    if (position + viewportHeight >= contentBottom - AUTO_VOL_EDGE_PX) {
-        if (computedCurVolNo.value < computedVolumeSum.value) {
-            switchingVolume = true
-            selectVol(computedCurVolNo.value)
-            window.setTimeout(() => { switchingVolume = false }, 600)
+    // 向下：视口接近末尾 → 追加下一卷，丢掉最上面的
+    if (lastVol + 1 < total && position + viewportHeight >= contentBottom - SLIDE_TRIGGER_PX) {
+        sliding = true
+        const beforeHeight = scroller ? scroller.scrollHeight : 0
+        renderedVolumes.value = [...vols.slice(1), lastVol + 1]
+        await nextTick()
+        if (scroller && beforeHeight > 0) {
+            const removed = beforeHeight - scroller.scrollHeight
+            if (removed > 0) {
+                scrollView.value.scrollTo(Math.max(0, position - removed), 0)
+            }
         }
+        window.setTimeout(() => { sliding = false }, 300)
         return
     }
 
-    // 顶部：真顶到头 → 回上一卷
-    if (position <= AUTO_VOL_EDGE_PX && computedCurVolNo.value > 1) {
-        switchingVolume = true
-        selectVol(computedCurVolNo.value - 2)
-        window.setTimeout(() => { switchingVolume = false }, 600)
+    // 向上：视口接近开头 → 在前面补上一卷，丢掉最下面的
+    if (firstVol - 1 >= 0 && position <= contentTop + SLIDE_TRIGGER_PX) {
+        sliding = true
+        const beforeHeight = scroller ? scroller.scrollHeight : 0
+        renderedVolumes.value = [firstVol - 1, ...vols.slice(0, -1)]
+        await nextTick()
+        if (scroller && beforeHeight > 0) {
+            const added = scroller.scrollHeight - beforeHeight
+            if (added > 0) {
+                scrollView.value.scrollTo(position + added, 0)
+            }
+        }
+        window.setTimeout(() => { sliding = false }, 300)
     }
 }
 
