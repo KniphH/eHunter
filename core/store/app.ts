@@ -1181,6 +1181,22 @@ export const storeAction = {
         }
     },
     /** 换了算法文件之后补跑已经加载出来的页（幂等，走服务端缓存） */
+    /**
+     * 算法勾选变化后重算已加载的页。
+     *
+     * 只改 shader 文件不会自动重跑：已经超分过的页 displaySrc 还在，
+     * 旧逻辑会直接跳过，用户看到的就是「取消勾选倍率之后画面还是放大的」。
+     * 这里先把 displaySrc 清掉退回原图，再统一补跑。
+     */
+    refreshSuperResAfterShaderChange: () => {
+        if (!store.superResEnabled) {
+            return
+        }
+        store.imgPageInfos.forEach(info => {
+            info.displaySrc = ''
+        })
+        upgradeAllLoadedPages()
+    },
     refreshSuperResPages: () => {
         if (store.superResEnabled) {
             upgradeAllLoadedPages()
@@ -1498,6 +1514,13 @@ export function init(albumService: AlbumService) {
     // init() again with a fresh service instead of tearing down the app.
     store.pageCount = albumService.getPageCount()
     runtimeAlbumService = albumService
+    // 页数可能后续增长（wnacg 边扫边补），回调里同步一次
+    albumService.setPageCountListener?.(() => {
+        const count = albumService.getPageCount()
+        if (count !== store.pageCount) {
+            store.pageCount = count
+        }
+    })
 
     let thumbInfos = albumService.getThumbInfos(false)
     // console.log('[init] thumbInfos:', JSON.parse(JSON.stringify(thumbInfos)))

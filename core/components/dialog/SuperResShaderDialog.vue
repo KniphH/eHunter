@@ -128,6 +128,10 @@ function toggleEnabled(index: number): void {
     }
     file.enabled = file.enabled === false
     superResolutionService.setShaderFiles(files.value.map(item => ({ ...item })))
+    // 让已经显示出来的页按新算法重算，否则画面还是旧结果
+    storeAction.refreshSuperResAfterShaderChange()
+    // 让已经显示出来的页按新算法重算，否则画面还是旧结果
+    storeAction.refreshSuperResAfterShaderChange()
 }
 
 /**

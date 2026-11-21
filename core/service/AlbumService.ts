@@ -3,6 +3,11 @@ import type { ImgPageInfo, ThumbInfo, PreviewThumbnailStyle, ImgSrcMode } from '
 export const NameAlbumService = 'album_service'
 
 export interface AlbumService {
+    /**
+     * 页数在初始化之后还可能变化（比如 wnacg 整本视图是边扫边补），
+     * 服务通过这个回调通知上层刷新 store.pageCount。
+     */
+    setPageCountListener?(listener: () => void): void
     isSupportOriginImg(): boolean
     isSupportImgChangeSource(): boolean
     isSupportThumbView(): boolean

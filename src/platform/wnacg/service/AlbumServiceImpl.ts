@@ -43,6 +43,7 @@ export class WNACGAlbumServiceImpl implements AlbumService {
   private imgListRefreshing: Promise<void> | null = null
   private imgListRefreshedAt: number = 0
   private reportInitializationStep: (step: InitializationStepUpdate) => void = () => {}
+  private pageCountListener: (() => void) | null = null
   private initializationStepStatus: Record<string, InitializationStepUpdate['status']> = {}
   private readonly initializationStepOrder = WNACG_INITIALIZATION_STEPS.map(step => step.id)
   private readonly initializationStepMap = createStepMap(WNACG_INITIALIZATION_STEPS)
@@ -81,6 +82,10 @@ export class WNACGAlbumServiceImpl implements AlbumService {
 
   setInitializationStepReporter(reporter: (step: InitializationStepUpdate) => void): void {
     this.reportInitializationStep = reporter
+  }
+
+  setPageCountListener(listener: () => void): void {
+    this.pageCountListener = listener
   }
 
   private updateInitializationStep(step: InitializationStepUpdate): void {
@@ -287,6 +292,8 @@ export class WNACGAlbumServiceImpl implements AlbumService {
         this.imgListItems = [...this.imgListItems, ...batch.items]
         this.pageCount = this.imgListItems.length
         this.buildPageInfos([])
+        // 通知上层把新的页数写进 store，否则界面还停在首屏那 12 页
+        this.pageCountListener?.()
         nextCursor = batch.nextCursor
       } catch (error) {
         Logger.logText('WNACG', `background walk stopped: ${String((error as Error)?.message || error)}`)
