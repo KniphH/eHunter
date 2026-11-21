@@ -75,7 +75,22 @@ interface TextureSlot {
 
 const STORAGE_KEY = 'ehunter_superres_shaders_v1'
 /** 缓存多少页超分结果。书页模式翻几页就回退，8 页太小，翻回来全是重算 */
-const RESULT_CACHE_LIMIT = 24
+/** 缓存池默认大小；用户在设置里可以改 */
+const DEFAULT_RESULT_CACHE_LIMIT = 24
+let resultCacheLimit = DEFAULT_RESULT_CACHE_LIMIT
+
+/**
+ * 设置超分结果缓存池的大小。
+ *
+ * 之前写死 24：预加载可能只有 3 页，却压着 20 多页的超分结果，
+ * 白占内存。现在由设置项 superResCacheLimit 控制。
+ */
+export function setSuperResCacheLimit(value: number): void {
+    if (!Number.isFinite(value)) {
+        return
+    }
+    resultCacheLimit = Math.max(1, Math.min(500, Math.floor(value)))
+}
 
 /** 失败后多久允许重试。网络抖动、临时超时不该让这一页永久失去超分 */
 const FAILED_RETRY_MS = 15_000
@@ -1098,7 +1113,7 @@ class SuperResolutionService {
     private store(sourceUrl: string, result: SuperResResult): void {
         this.resultCache.set(sourceUrl, { result })
         this.ownUrls.add(result.url)
-        while (this.resultCache.size > RESULT_CACHE_LIMIT) {
+        while (this.resultCache.size > resultCacheLimit) {
             const oldestKey = this.resultCache.keys().next().value as string | undefined
             if (oldestKey === undefined) {
                 break

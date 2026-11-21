@@ -53,7 +53,7 @@ export interface SettingFieldDefinition {
     showInDialog: boolean
     dialogCategory?: SettingsPanelCategory
     dropKey?: 'readingModeList' | 'bookDirection' | 'pageTurnAnimation' | 'langList' | 'superResEncodeList'
-    numKey?: 'widthScale' | 'loadNum' | 'superResLookahead' | 'downloadChunkSize' | 'volumeSize' | 'pagesPerScreen' | 'autoFlipFrequency' | 'wheelSensitivity' | 'scrollPageMargin' | 'magnifierZoom' | 'magnifierAreaSize'
+    numKey?: 'superResCacheLimit' | 'widthScale' | 'loadNum' | 'superResLookahead' | 'downloadChunkSize' | 'volumeSize' | 'pagesPerScreen' | 'autoFlipFrequency' | 'wheelSensitivity' | 'scrollPageMargin' | 'magnifierZoom' | 'magnifierAreaSize'
     min?: number
     max?: number
     useAbbrName?: boolean
@@ -256,6 +256,19 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         showInTopBar: false,
         showInDialog: true,
         dialogCategory: 'general',
+    },
+    {
+        id: 'superResCacheLimit',
+        control: 'num',
+        labelI18nKey: 'superResCacheLimit',
+        tipI18nKey: 'superResCacheLimitTip',
+        modeScope: 'both',
+        showInTopBar: false,
+        showInDialog: true,
+        dialogCategory: 'general',
+        numKey: 'superResCacheLimit',
+        min: 2,
+        max: 200,
     },
     {
         id: 'superResEncode',

@@ -19,7 +19,7 @@ import {
     getThumbExpandSegmentByPage,
 } from '../model/thumbExpand'
 import { readLayoutPreference, writeLayoutPreference } from './layoutPreference'
-import { superResolutionService, setOutputEncode, type SuperResEncode, type SuperResShaderFile } from '../service/SuperResolutionService'
+import { setSuperResCacheLimit, superResolutionService, setOutputEncode, type SuperResEncode, type SuperResShaderFile } from '../service/SuperResolutionService'
 import { isInSuperResWindow, superResPriority } from '../service/renderQueue'
 import { GalleryDownloadService } from '../service/GalleryDownloadService'
 import type { DownloadStatusEvent, DownloadTaskPhase, DownloadSeverity } from '../service/GalleryDownloadService'
@@ -363,6 +363,7 @@ function writeUnifiedSettingsState() {
             lang: lang.value,
             autoRetryByOtherSource: store.autoRetryByOtherSource,
             superResEnabled: store.superResEnabled,
+            superResCacheLimit: store.superResCacheLimit,
             superResEncode: store.superResEncode,
             hasShownWelcomeInstruction: store.hasShownWelcomeInstruction,
             hasShownBookInstruction: store.hasShownBookInstruction,
@@ -453,6 +454,7 @@ function applyUnifiedSettingsPreference() {
         ['IsReverseBookWheeFliplDirection', 'IsReverseBookWheeFliplDirection'],
         ['autoRetryByOtherSource', 'autoRetryByOtherSource'],
         ['superResEnabled', 'superResEnabled'],
+        ['superResCacheLimit', 'superResCacheLimit'],
         ['hasShownWelcomeInstruction', 'hasShownWelcomeInstruction'],
         ['hasShownBookInstruction', 'hasShownBookInstruction'],
     ]
@@ -613,6 +615,8 @@ export const store = reactive({
     magnifierZoom: 3,
     magnifierAreaSize: 80,
     superResEnabled: false,
+    /** 超分结果缓存池大小（页数）。预加载只有几页时没必要压太多 */
+    superResCacheLimit: 24,
     // 手机默认 JPEG：同页体积约为 PNG 的 1/12，编码也更快，避免 8 页缓存把内存撑爆
     superResEncode: <SuperResEncode>(isMobileDevice() ? 'jpeg' : 'png'),
     hasShownWelcomeInstruction: false,
@@ -756,6 +760,13 @@ export const settingConf = {
         max: 30,
         suffix: ''
     },
+    superResCacheLimit: {
+        // 池子大小：太小回看旧页要重算，太大白占内存
+        list: [3, 5, 8, 12, 16, 24, 32, 48, 64],
+        min: 2,
+        max: 200,
+        suffix: 'P'
+    },
     loadNum: {
         list: [1, 2, 3, 5, 10, 20, 30, 40, 50, 100],
         suffix: 'P'
@@ -878,6 +889,9 @@ superResolutionService.setEvictListener((url) => {
     }
 })
 
+// 把存储里读到的池大小同步给超分服务（服务不认识 store，避免循环依赖）
+setSuperResCacheLimit(store.superResCacheLimit)
+
 export const storeAction = {
     toggleShowMoreSettings: () => {
         storeAction.toggleShowMoreSettingsDialog()
@@ -993,6 +1007,12 @@ export const storeAction = {
     },
     setLoadNum: (val: number) => {
         store.loadNum = val
+        persistUnifiedSettingsState()
+    },
+    setSuperResCacheLimit: (val: number) => {
+        const normalized = Math.max(2, Math.min(200, Math.floor(Number(val) || 24)))
+        store.superResCacheLimit = normalized
+        setSuperResCacheLimit(normalized)
         persistUnifiedSettingsState()
     },
     setSuperResLookahead: (val: number) => {

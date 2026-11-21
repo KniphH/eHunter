@@ -28,6 +28,7 @@ export function getFieldValue(id: string): any {
         case 'superResEnabled': return store.superResEnabled
         case 'superResEncode': return store.superResEncode
         case 'superResLookahead': return store.superResLookahead
+        case 'superResCacheLimit': return store.superResCacheLimit
         default: return null
     }
 }
@@ -38,6 +39,7 @@ export function setFieldValue(id: string, val: any): void {
         case 'widthScale': storeAction.setWidthScale(val); break
         case 'loadNum': storeAction.setLoadNum(val); break
         case 'superResLookahead': storeAction.setSuperResLookahead(val); break
+        case 'superResCacheLimit': storeAction.setSuperResCacheLimit(val); break
         case 'downloadChunkSize': storeAction.setDownloadChunkSize(val); break
         case 'volumeSize': storeAction.setVolumeSize(val); break
         case 'showThumbView': if (store.showThumbView !== val) storeAction.toggleShowThumbView(); break
