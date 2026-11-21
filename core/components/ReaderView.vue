@@ -257,24 +257,45 @@ div {
             line-height: 11px;
             color: white
         }
+        /*
+         * 宿主站点会对 <button> 施加全局样式（Bootstrap 的边框/内边距/字体、
+         * 以及各种 button:not(:disabled) 规则）。nh / eh 上没有这类规则所以看着正常，
+         * 到了 18comic / joyacg 就会变形：按钮被撑大、图标偏移、出现多余边框。
+         * 这里把可能被覆盖的属性全部显式钉死。
+         */
         > .full-screen {
-            display: flex;
+            display: flex !important;
             flex-direction: row;
             align-items: center;
             justify-content: center;
-            border: 0;
-            background: transparent;
+            box-sizing: content-box !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 0 0 5px !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            width: 12px !important;
+            height: 12px !important;
+            font: inherit !important;
+            line-height: 1 !important;
+            text-transform: none !important;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            box-shadow: none !important;
+            outline: none !important;
             cursor: pointer;
-            padding: 0;
             color: white;
             transition: color 0.2s ease;
             &:hover {
                 color: $accent_color;
             }
             > svg {
+                display: block !important;
                 fill: currentColor;
-                width: 12px;
-                height: 12px;
+                width: 12px !important;
+                height: 12px !important;
             }
         }
     }

@@ -63,7 +63,7 @@ export function detectPlatform(): PlatformDetectionResult {
     }
   }
 
-  const isWnacgHost = hostname === 'wnacg.com' || hostname.endsWith('.wnacg.com')
+  const isWnacgHost = /(^|\.)wnacg\.(com|ru|net|org)$/i.test(hostname)
   const isWnacgReaderPage = /^\/photos-slide-aid-\d+(?:-[a-z]+-\d+)*\.html$/.test(pathname)
 
   // WNACG platform: reader page only

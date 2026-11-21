@@ -75,16 +75,27 @@ function createEhunterSwitch(onOpen: () => void): void {
     existing.remove()
   }
 
+  /*
+   * 这个"拉绳"会被宿主样式影响（Bootstrap 站点尤其明显：容器被压在下面、
+   * 或者 span 的尺寸被全局规则改掉）。用 setProperty + important 钉死，
+   * z-index 直接顶到最大值，保证任何站点都盖不住它。
+   */
   const container = document.createElement('div')
-  container.style.display = 'flex'
-  container.style.flexDirection = 'column'
-  container.style.justifyContent = 'center'
-  container.style.alignItems = 'center'
-  container.style.position = 'fixed'
-  container.style.right = '100px'
-  container.style.top = '-150px'
-  container.style.zIndex = '2147483646'
-  container.style.cursor = 'pointer'
+  const pin = (prop: string, value: string): void => {
+    container.style.setProperty(prop, value, 'important')
+  }
+  pin('display', 'flex')
+  pin('flex-direction', 'column')
+  pin('justify-content', 'center')
+  pin('align-items', 'center')
+  pin('position', 'fixed')
+  pin('right', '100px')
+  pin('top', '-150px')
+  pin('z-index', '2147483647')
+  pin('cursor', 'pointer')
+  pin('visibility', 'visible')
+  pin('opacity', '1')
+  pin('pointer-events', 'auto')
   container.style.transition = 'all 0.2s cubic-bezier(.46,-0.23,.37,2.38)'
   container.setAttribute('title', 'open eHunter')
   container.setAttribute('id', EHUNTER_SWITCH_ID)
@@ -97,18 +108,20 @@ function createEhunterSwitch(onOpen: () => void): void {
   })
 
   const line = document.createElement('span')
-  line.style.width = '2px'
-  line.style.height = '200px'
-  line.style.background = '#2ecc71'
-  line.style.boxShadow = '0 1px 6px rgba(0,0,0,.117647), 0 1px 4px rgba(0,0,0,.117647)'
+  line.style.setProperty('display', 'block', 'important')
+  line.style.setProperty('width', '2px', 'important')
+  line.style.setProperty('height', '200px', 'important')
+  line.style.setProperty('background', '#2ecc71', 'important')
+  line.style.setProperty('box-shadow', '0 1px 6px rgba(0,0,0,.117647), 0 1px 4px rgba(0,0,0,.117647)', 'important')
   container.appendChild(line)
 
   const ring = document.createElement('span')
-  ring.style.border = '2px solid #2ecc71'
-  ring.style.borderRadius = '50%'
-  ring.style.width = '15px'
-  ring.style.height = '15px'
-  ring.style.boxShadow = '0 1px 6px rgba(0,0,0,.117647), 0 1px 4px rgba(0,0,0,.117647)'
+  ring.style.setProperty('display', 'block', 'important')
+  ring.style.setProperty('border', '2px solid #2ecc71', 'important')
+  ring.style.setProperty('border-radius', '50%', 'important')
+  ring.style.setProperty('width', '15px', 'important')
+  ring.style.setProperty('height', '15px', 'important')
+  ring.style.setProperty('box-shadow', '0 1px 6px rgba(0,0,0,.117647), 0 1px 4px rgba(0,0,0,.117647)', 'important')
   container.appendChild(ring)
 
   document.body.appendChild(container)

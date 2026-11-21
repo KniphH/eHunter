@@ -20,6 +20,10 @@ html.ehunter-doc-scroll {
         height: auto !important;
         // 容器回到文档流后会被 body 默认的 8px 外边距顶下去，出现顶部白边
         margin: 0 !important;
+        // joyacg 这类站点给 body 加了左右 padding，容器是 absolute 定位的，
+        // 会整体被推向右（视觉上就是"漫画偏右"）。padding 也一并归零。
+        padding: 0 !important;
+        text-align: left !important;
     }
 
     /**
