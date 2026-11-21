@@ -49,7 +49,8 @@ function onScrollStopped(position: number) {
 }
 
 // watch scrollPosition to calculate curIndex
-watch(scrollPosition, () => {
+watch(scrollPosition, position => {
+    maybeSwitchVolume(position)
     if (!pageContainers.value) {
         return
     }
@@ -141,6 +142,54 @@ watch(() => store.curViewIndex, (newVal, oldVal) => {
 function selectVol(volIndex: number) {
     storeAction.setCurViewIndex(volIndex * store.volumeSize, 'scroll_view_vol')
 }
+
+/*
+ * 卷的自动衔接。
+ *
+ * 一次只渲染当前卷（computedVolPageIndexList），所以「滑出窗口就卸载」是天然的，
+ * 不需要额外的卸载逻辑。这里只补两件事：
+ *   - 滑到本卷底部 → 自动进入下一卷（相当于把「手动点分页」变成滚动续接）
+ *   - 滑回本卷顶部 → 自动回到上一卷（用户往回翻时的对称行为）
+ *
+ * 为什么底部要「碰到就接」而顶部要「顶到头才接」：
+ * 向前阅读是主流，提前一屏接上下一卷可以让滚动不中断；
+ * 往回读是少数情况，等真顶到顶部再接就够了，否则一进来就会误触发。
+ */
+const AUTO_VOL_EDGE_PX = 40
+let switchingVolume = false
+
+function maybeSwitchVolume(position: number) {
+    const containers = pageContainers.value
+    if (!containers || containers.length === 0 || switchingVolume) {
+        return
+    }
+    const scroller = scrollView.value?.$el as HTMLElement | undefined
+    const viewportHeight = scroller && scroller.clientHeight ? scroller.clientHeight : window.innerHeight
+
+    const last = containers[containers.length - 1] as HTMLElement
+    if (!last) {
+        return
+    }
+    const contentBottom = last.offsetTop + last.offsetHeight
+
+    // 底部：碰到本卷最后一张的下沿 → 接下一卷
+    if (position + viewportHeight >= contentBottom - AUTO_VOL_EDGE_PX) {
+        if (computedCurVolNo.value < computedVolumeSum.value) {
+            switchingVolume = true
+            selectVol(computedCurVolNo.value)
+            window.setTimeout(() => { switchingVolume = false }, 600)
+        }
+        return
+    }
+
+    // 顶部：真顶到头 → 回上一卷
+    if (position <= AUTO_VOL_EDGE_PX && computedCurVolNo.value > 1) {
+        switchingVolume = true
+        selectVol(computedCurVolNo.value - 2)
+        window.setTimeout(() => { switchingVolume = false }, 600)
+    }
+}
+
 </script>
 
 <style lang="scss" scoped>
