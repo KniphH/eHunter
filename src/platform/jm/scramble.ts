@@ -12,20 +12,31 @@
 /** 分块数只可能是这几个值 */
 const BLOCK_TABLE = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
 
-/** 按 scramble_id 和 aid 算出这张图被切成了几条 */
-export function getBlockCount(scrambleId: number, aid: number): number {
-    const sum = scrambleId + aid
-    const hex = md5Hex(String(sum))
-    let tail = parseInt(hex.charAt(hex.length - 1), 16)
-    if (!Number.isFinite(tail)) {
-        tail = 0
+/**
+ * 算出某一页被切成了几条。
+ *
+ * 对应站点 get_num(aid, pageName)：
+ *   n = String(aid) + pageName           // **字符串拼接**，不是相加
+ *   n = md5(n).substr(-1).charCodeAt()   // 取末位的**字符编码**（'6' -> 54）
+ *   aid >= 421926 时 % 8；268850~421925 时 % 10
+ *   再查表 {0:2, 1:4, ..., 9:20}
+ *
+ * 注意每页的 pageName 不同，所以**同一本里每页的块数可能不一样**。
+ * 早先按「md5(scramble_id+aid) 的十六进制值」算、且全书共用同一个块数，
+ * 结果有的页被切得过细。
+ */
+export function getBlockCount(aid: number, pageName: string): number {
+    const hex = md5Hex(String(aid) + pageName)
+    let code = hex.charCodeAt(hex.length - 1)
+    if (!Number.isFinite(code)) {
+        code = 0
     }
     if (aid >= 268850 && aid <= 421925) {
-        tail %= 10
+        code %= 10
     } else if (aid >= 421926) {
-        tail %= 8
+        code %= 8
     }
-    return BLOCK_TABLE[tail] ?? 10
+    return BLOCK_TABLE[code] ?? 10
 }
 
 /**
@@ -58,14 +69,21 @@ export async function unscrambleToBlob(
     const blockHeight = Math.floor(totalHeight / blocks)
     const remainder = totalHeight % blocks
 
-    for (let i = 0; i < blocks; i++) {
+    /*
+     * 与站点逐字对应：
+     *   源位置 = 高度 - h*(g+1) - 余数   （倒序）
+     *   目标位置 = h*g                   （正序）
+     *   第 0 条的高度补上余数，其余条的目标位置下移余数
+     * 余数加在**目标**上而不是源上——这点反了就会整体错位一条。
+     */
+    for (let g = 0; g < blocks; g++) {
         let height = blockHeight
-        let sourceY = blockHeight * i
-        const targetY = totalHeight - blockHeight * (i + 1) - remainder
-        if (i === 0) {
+        const sourceY = totalHeight - blockHeight * (g + 1) - remainder
+        let targetY = blockHeight * g
+        if (g === 0) {
             height += remainder
         } else {
-            sourceY += remainder
+            targetY += remainder
         }
         if (height <= 0) {
             continue

@@ -99,13 +99,11 @@ export class JmAlbumServiceImpl implements AlbumService {
         createStepUpdate(this.initializationStepMap.parseImagePageMetadata, 'success', `${containers.length} pages`),
       )
 
-      const scrambleId = readGlobalNumber('scramble_id')
       const aid = readGlobalNumber('aid')
-      const blocks = getBlockCount(scrambleId, aid)
-      Logger.logText('JM', `scramble_id=${scrambleId} aid=${aid} blocks=${blocks}`)
+      Logger.logText('JM', `aid=${aid} pages=${containers.length}`)
 
       // 自己下载并还原：页面上只有滚进视口的图才有 canvas，不能依赖它
-      const sources = await this.buildSources(containers.length)
+      const sources = await this.buildSources(containers)
       this.updateInitializationStep(createStepUpdate(this.initializationStepMap.renderScrambledPages, 'success'))
       if (sources.length === 0) {
         const reason = 'Failed to extract page images.'
@@ -158,20 +156,26 @@ export class JmAlbumServiceImpl implements AlbumService {
    * 不并发是因为同时解码 30 张 1280x1807 的图很容易把移动端内存打满；
    * 串行虽然慢些，但每张处理完就能释放中间 canvas。
    */
-  private async buildSources(expected: number): Promise<string[]> {
-    const scrambleId = readGlobalNumber('scramble_id')
-    const aid = readGlobalNumber('aid')
-    const blocks = getBlockCount(scrambleId, aid)
-    const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img[id^="album_photo_"]'))
-    const total = Math.min(expected, imgs.length)
+  private async buildSources(containers: HTMLElement[]): Promise<string[]> {
+    const defaultAid = readGlobalNumber('aid')
+    const total = containers.length
     const result: string[] = []
 
     for (let i = 0; i < total; i++) {
-      const img = imgs[i]
-      const url = img.getAttribute('data-original') || img.getAttribute('src') || ''
+      const container = containers[i]
+      const img = container.querySelector<HTMLImageElement>('img[id^="album_photo_"]')
+        || Array.from(document.querySelectorAll<HTMLImageElement>('img[id^="album_photo_"]'))[i]
+      const url = img?.getAttribute('data-original') || img?.getAttribute('src') || ''
       if (!url) {
         continue
       }
+      /*
+       * 块数逐页不同：站点用「章节 aid + 页码(id 里 '.' 前的部分)」算。
+       * 章节 aid 优先取 img 上的 data-chapter-aid。
+       */
+      const chapterAid = Number(img?.getAttribute('data-chapter-aid')) || defaultAid
+      const pageName = (container.id || '').split('.')[0]
+      const blocks = getBlockCount(chapterAid, pageName)
       try {
         const raw = await fetchImageBlob(url, 'blob')
         const fixed = await unscrambleToBlob(raw, blocks)
