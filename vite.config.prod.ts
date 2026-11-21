@@ -63,6 +63,7 @@ const userscriptBanner = `// ==UserScript==
 // @connect      i.pximg.net
 // @connect      githubusercontent.com
 // @connect      jp.animesales.xyz
+// @grant        unsafeWindow
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue

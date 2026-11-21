@@ -23,6 +23,8 @@ import { JM_INITIALIZATION_STEPS, createStepMap, createStepUpdate, markCurrentPe
 import { fetchImageBlob } from '../../../../core/service/ImageFetchService'
 import { getBlockCount, unscrambleToBlob } from '../scramble'
 
+declare const unsafeWindow: Window & Record<string, unknown> | undefined
+
 const DEFAULT_HEIGHT_OF_WIDTH = 1.4
 const THUMB_BASE_WIDTH = 200
 /** 每页停留时间：够触发一次 IntersectionObserver / lazyload */
@@ -247,11 +249,38 @@ export class JmAlbumServiceImpl implements AlbumService {
   }
 }
 
-/** 读取站点内联脚本里的全局数字变量（scramble_id / aid） */
+/**
+ * 读取站点内联脚本里的全局变量（aid / scramble_id）。
+ *
+ * **必须走 unsafeWindow**：Tampermonkey 的沙箱有自己的 window，
+ * `window.aid` 读到的是 undefined → 0，分块数就全错了（实测 aid=0 导致
+ * 切的条数和站点对不上，画面碎成一条一条）。
+ * 拿不到 unsafeWindow 时退回解析页面里的 `var aid = 1210177;` 文本。
+ */
 function readGlobalNumber(name: string): number {
-  const value = (window as unknown as Record<string, unknown>)[name]
-  const num = Number(value)
-  return Number.isFinite(num) ? num : 0
+  const unsafe = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : null) as Record<string, unknown> | null
+  if (unsafe) {
+    const num = Number(unsafe[name])
+    if (Number.isFinite(num) && num > 0) {
+      return num
+    }
+  }
+  const direct = Number((window as unknown as Record<string, unknown>)[name])
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct
+  }
+  // 最后兜底：从内联脚本文本里抠 "var aid = 1210177;"
+  const pattern = new RegExp(`var\s+${name}\s*=\s*(\d+)`)
+  for (const script of Array.from(document.querySelectorAll('script'))) {
+    const match = pattern.exec(script.textContent || '')
+    if (match) {
+      const parsed = Number(match[1])
+      if (Number.isFinite(parsed)) {
+        return parsed
+      }
+    }
+  }
+  return 0
 }
 
 function readTitle(): string {

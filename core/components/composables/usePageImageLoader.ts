@@ -71,6 +71,9 @@ const MAX_ASPECT_DEVIATION = 3
  */
 const AUTO_RETRY_DELAYS = [1, 1, 2, 3, 5, 5]
 
+/** 退避序列用完后：固定每 5 秒重试一次，**无限重试**，不刷新页面 */
+const INFINITE_RETRY_SEC = 5
+
 export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     const { index, albumService, imgPageInfo, warmMagnifierSource, isActive, getImgElement } = options
 
@@ -154,16 +157,6 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         autoRetrySec.value = 0
     }
 
-    /** 重试用尽后整页刷新。不设次数上限、不设间隔。 */
-    function requestAutoReload(): void {
-        try {
-            window.localStorage.setItem('ehunter:resume-index', String(store.curViewIndex))
-        } catch {
-            // 记不住阅读位置也无妨
-        }
-        window.location.reload()
-    }
-
     /** 用户手动重试 / 成功加载后，退避次数从头算 */
     function resetAutoRetry() {
         clearAutoRetryTimer()
@@ -180,13 +173,11 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         if (!isActive()) {
             return
         }
-        if (autoRetryCount >= AUTO_RETRY_DELAYS.length) {
-            // 退避重试用尽：不再干等用户点「刷新」，直接整页重载
-            requestAutoReload()
-            return
-        }
         clearAutoRetryTimer()
-        const delay = AUTO_RETRY_DELAYS[autoRetryCount]
+        // 前 6 次按退避节奏，之后固定 5 秒一次、无限重试
+        const delay = autoRetryCount < AUTO_RETRY_DELAYS.length
+            ? AUTO_RETRY_DELAYS[autoRetryCount]
+            : INFINITE_RETRY_SEC
         autoRetryCount++
         autoRetryAt = Date.now() + delay * 1000
         autoRetrySec.value = delay
@@ -197,7 +188,7 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                 return
             }
             clearAutoRetryTimer()
-            Logger.logText('LOADING', `auto retry ${autoRetryCount}/${AUTO_RETRY_DELAYS.length}`)
+            Logger.logText('LOADING', `auto retry #${autoRetryCount} after ${delay}s`)
             void loadImgSrc(ImgSrcMode.Default)
         }, 500)
     }
@@ -634,7 +625,6 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                     Logger.logText('LOADING', 'session paused before degraded fallback (page invisible)')
                     return
                 }
-                isAutoRetryExhausted.value = true
                 if (recovered) {
                     curLoadStatus.value = ImgLoadStatus.Loaded
                     autoRetryQueue.value = []
