@@ -202,6 +202,30 @@ export class WNACGAlbumServiceImpl implements AlbumService {
    * 上限 500 页，防止异常数据把请求打爆。
    */
   /**
+   * 从当前文档里找相册 aid。
+   *
+   * view-id 页面本身带 /photos-index-aid-{aid}.html 这样的链接（面包屑/返回），
+   * 抠出其中的数字即可。拿到真正的 aid 后就能一次请求图片列表，
+   * 不必沿 nextpage 逐页走。
+   */
+  private readAidFromDocument(): string {
+    const html = document.documentElement.innerHTML
+    const patterns = [
+      /photos-index-aid-(\d+)\.html/i,
+      /photos-item-aid-(\d+)\.html/i,
+      /photos-slide-aid-(\d+)\.html/i,
+      /aid-(\d+)/i,
+    ]
+    for (const pattern of patterns) {
+      const match = pattern.exec(html)
+      if (match) {
+        return match[1]
+      }
+    }
+    return ''
+  }
+
+  /**
    * 沿 nextpage 链逐页抓取。
    *
    * 页面之间靠 `var nextpage` 串起来，页 id 不连号，所以没法并发——只能一页一页走。
