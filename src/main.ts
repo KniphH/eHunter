@@ -311,7 +311,14 @@ const ensureMounted = (platform: Platform): HTMLElement => {
 
     // 建立 shadow 边界并把样式与挂载点放进去
     if (!ehunterShadowRoot) {
-      ehunterShadowRoot = container.attachShadow({ mode: 'open' })
+      try {
+        ehunterShadowRoot = container.attachShadow({ mode: 'open' })
+      } catch {
+        // 极少数环境不允许 attachShadow（比如容器已被挂过），退回到普通挂载
+        ehunterShadowRoot = null
+      }
+    }
+    if (ehunterShadowRoot && !ehunterShadowMount) {
       const style = document.createElement('style')
       style.textContent = String((window as unknown as Record<string, unknown>).__EHUNTER_CSS__ || '')
       ehunterShadowRoot.appendChild(style)
@@ -324,7 +331,16 @@ const ensureMounted = (platform: Platform): HTMLElement => {
       setMountPoint(ehunterShadowMount)
     }
 
-    app.mount(ehunterShadowMount!)
+    if (ehunterShadowMount) {
+      app.mount(ehunterShadowMount)
+    } else {
+      // 降级：样式注入 <head>，直接挂在容器上
+      const fallbackStyle = document.createElement('style')
+      fallbackStyle.textContent = String((window as unknown as Record<string, unknown>).__EHUNTER_CSS__ || '')
+      document.head.appendChild(fallbackStyle)
+      setMountPoint(container)
+      app.mount(container)
+    }
     ehunterApp = app
     isMounted = true
     mountedPlatform = platform
