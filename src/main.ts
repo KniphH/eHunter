@@ -404,6 +404,33 @@ function restoreHostImageLoading(): void {
   })
 }
 
+/*
+ * 页面生命周期的兜底。
+ *
+ * 摘掉宿主图片 src 之后，如果用户**没有点关闭**而是直接后退/关闭标签页，
+ * 我们就收不到「关闭插件」的信号，那些 src 会一直空着。
+ * 尤其是从漫画页后退到列表页：走 BFCache 时文档被冻结再恢复，
+ * 列表页的图片全都加载不出来，用户必须手动刷新才能恢复。
+ *
+ * 所以：页面被隐藏时先把图片还回去；从 BFCache 恢复时再按当前插件状态决定
+ * 是否重新阻断。
+ */
+window.addEventListener('pagehide', () => {
+  restoreHostImageLoading()
+})
+
+window.addEventListener('pageshow', event => {
+  if (!event.persisted) {
+    return
+  }
+  // BFCache 恢复：插件是关着的就把图片放回去；开着才继续阻断
+  if (readEHunterStatus()) {
+    blockHostImageLoading()
+  } else {
+    restoreHostImageLoading()
+  }
+})
+
 const toggleEHunterView = (show: boolean): void => {
   const container = ensureMounted(mountedPlatform!)
   // 阅读器打开时不显示那个"拉绳"：它只用来在关闭状态下把插件叫出来。
