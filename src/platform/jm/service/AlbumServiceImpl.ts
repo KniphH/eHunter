@@ -18,7 +18,10 @@ import type { AlbumService } from '../../../../core/service/AlbumService'
 import type { ImgPageInfo, ThumbInfo, PreviewThumbnailStyle, ImgSrcMode } from '../../../../core/model/model'
 import { ThumbMode } from '../../../../core/model/model'
 import type { InitializationStepUpdate } from '../../types'
+import Logger from '../../../../core/utils/logger'
 import { JM_INITIALIZATION_STEPS, createStepMap, createStepUpdate, markCurrentPendingStepFailed } from '../../init-steps'
+import { fetchImageBlob } from '../../../../core/service/ImageFetchService'
+import { getBlockCount, unscrambleToBlob } from '../scramble'
 
 const DEFAULT_HEIGHT_OF_WIDTH = 1.4
 const THUMB_BASE_WIDTH = 200
@@ -96,11 +99,14 @@ export class JmAlbumServiceImpl implements AlbumService {
         createStepUpdate(this.initializationStepMap.parseImagePageMetadata, 'success', `${containers.length} pages`),
       )
 
-      // 让每一页都进入视口，触发站点的 scramble 还原
-      await renderAllPages(containers)
-      this.updateInitializationStep(createStepUpdate(this.initializationStepMap.renderScrambledPages, 'success'))
+      const scrambleId = readGlobalNumber('scramble_id')
+      const aid = readGlobalNumber('aid')
+      const blocks = getBlockCount(scrambleId, aid)
+      Logger.logText('JM', `scramble_id=${scrambleId} aid=${aid} blocks=${blocks}`)
 
-      const sources = await collectPageSources(containers)
+      // 自己下载并还原：页面上只有滚进视口的图才有 canvas，不能依赖它
+      const sources = await this.buildSources(containers.length)
+      this.updateInitializationStep(createStepUpdate(this.initializationStepMap.renderScrambledPages, 'success'))
       if (sources.length === 0) {
         const reason = 'Failed to extract page images.'
         this.failCurrentInitializationStep(reason)
@@ -146,6 +152,60 @@ export class JmAlbumServiceImpl implements AlbumService {
     }
   }
 
+  /**
+   * 逐页下载打乱的图，按块数倒序还原，产出一串 blob URL。
+   *
+   * 不并发是因为同时解码 30 张 1280x1807 的图很容易把移动端内存打满；
+   * 串行虽然慢些，但每张处理完就能释放中间 canvas。
+   */
+  private async buildSources(expected: number): Promise<string[]> {
+    const scrambleId = readGlobalNumber('scramble_id')
+    const aid = readGlobalNumber('aid')
+    const blocks = getBlockCount(scrambleId, aid)
+    const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img[id^="album_photo_"]'))
+    const total = Math.min(expected, imgs.length)
+    const result: string[] = []
+
+    for (let i = 0; i < total; i++) {
+      const img = imgs[i]
+      const url = img.getAttribute('data-original') || img.getAttribute('src') || ''
+      if (!url) {
+        continue
+      }
+      try {
+        const raw = await fetchImageBlob(url, 'blob')
+        const fixed = await unscrambleToBlob(raw, blocks)
+        if (fixed) {
+          const objectUrl = URL.createObjectURL(fixed)
+          this.ownUrls.push(objectUrl)
+          result.push(objectUrl)
+        } else {
+          result.push(url)
+        }
+      } catch (err) {
+        Logger.logText('JM', `unscramble failed ${url}: ${String((err as Error)?.message || err)}`)
+        result.push(url)
+      }
+      if (i % 3 === 0 || i === total - 1) {
+        this.updateInitializationStep(
+          createStepUpdate(this.initializationStepMap.renderScrambledPages, 'pending', `${i + 1}/${total}`),
+        )
+      }
+    }
+    return result
+  }
+
+  dispose(): void {
+    for (const url of this.ownUrls) {
+      try {
+        URL.revokeObjectURL(url)
+      } catch {
+        // 忽略
+      }
+    }
+    this.ownUrls = []
+  }
+
   private buildPageInfos(sources: string[]): void {
     this.imgPageInfos = sources.map((src, index) => ({
       id: `jm:${index}`,
@@ -183,80 +243,19 @@ export class JmAlbumServiceImpl implements AlbumService {
   }
 }
 
+/** 读取站点内联脚本里的全局数字变量（scramble_id / aid） */
+function readGlobalNumber(name: string): number {
+  const value = (window as unknown as Record<string, unknown>)[name]
+  const num = Number(value)
+  return Number.isFinite(num) ? num : 0
+}
+
 function readTitle(): string {
   const h1 = document.querySelector('h1')
   const raw = (h1?.textContent || document.title || '').trim()
   return raw.replace(/\s*[-|]\s*禁漫天堂\s*$/i, '').trim()
 }
 
-/**
- * 把每一页滚进视口，让站点把 scramble 的图画到 canvas 上，最后滚回原处。
- */
-async function renderAllPages(containers: HTMLElement[]): Promise<void> {
-  const originalY = window.scrollY
-  for (const el of containers) {
-    el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior })
-    await sleep(SCROLL_STEP_MS)
-  }
 
-  const deadline = Date.now() + RENDER_WAIT_MS
-  while (Date.now() < deadline) {
-    const ready = containers.filter(el => el.querySelector('canvas')).length
-    if (ready >= containers.length) {
-      break
-    }
-    await sleep(250)
-  }
 
-  window.scrollTo({ top: originalY, behavior: 'instant' as ScrollBehavior })
-}
 
-/**
- * 按页序取图片来源：优先 canvas（已还原），没有则退回 img.src（可能是乱的）。
- */
-async function collectPageSources(containers: HTMLElement[]): Promise<string[]> {
-  const result: string[] = []
-  for (const container of containers) {
-    const canvas = container.querySelector('canvas')
-    if (canvas) {
-      const blob = await canvasToBlob(canvas)
-      if (blob) {
-        result.push(URL.createObjectURL(blob))
-        continue
-      }
-    }
-    const img = container.querySelector('img')
-    const fallback = img?.getAttribute('data-original') || img?.getAttribute('src') || ''
-    result.push(fallback)
-  }
-  return result.filter(Boolean)
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
-  return new Promise(resolve => {
-    try {
-      if (typeof canvas.toBlob === 'function') {
-        canvas.toBlob(blob => resolve(blob), 'image/webp', 0.95)
-        return
-      }
-    } catch {
-      // 走下面的 dataURL 兜底
-    }
-    try {
-      const dataUrl = canvas.toDataURL('image/png')
-      const base64 = dataUrl.split(',')[1] || ''
-      const binary = atob(base64)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i)
-      }
-      resolve(new Blob([bytes], { type: 'image/png' }))
-    } catch {
-      resolve(null)
-    }
-  })
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
