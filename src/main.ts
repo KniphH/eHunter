@@ -523,7 +523,16 @@ function stopEHunter(): void {
   store.thumbInfos = []
   store.curViewIndex = 0
 
+  /*
+   * 离开作品页时必须把宿主图片还回去。
+   * 之前在 stopEHunter 里漏了这一步：侧键后退到列表页时会走到这里，
+   * 插件确实卸载了，但被摘掉的 <img> src 没人恢复，
+   * 列表页就一片空白，只能手动刷新。
+   */
+  restoreHostImageLoading()
+
   document.body.style.overflow = ''
+  document.documentElement.style.overflow = ''
   disableDocumentScroll()
   restoreEHViewportOnClose()
 
