@@ -46,15 +46,6 @@
                                         :active="!!getFieldValue(fieldId)"
                                         @change="(val) => onFieldChange(fieldId, val)" />
                                 </div>
-                                <div class="ehunter-row">
-                                    <div class="ehunter-label-block">
-                                        <span class="ehunter-label">{{ i18n.superResolutionShaders }}</span>
-                                        <p class="ehunter-tip">{{ i18n.superResolutionShadersTip }}</p>
-                                    </div>
-                                    <button class="ehunter-action" type="button" @click="superResDialogActive = true">
-                                        {{ superResSummary }}
-                                    </button>
-                                </div>
                             </article>
 
                             <article ref="scrollRef" class="ehunter-group" data-category="scroll">
@@ -171,6 +162,45 @@
                                 </div>
                             </article>
 
+                            <article ref="superResRef" class="ehunter-group" data-category="superRes">
+                                <h4>{{ i18n.settingsSuperRes }}</h4>
+                                <div class="ehunter-row" v-for="fieldId in dialogSuperResFieldIds" :key="fieldId">
+                                    <div class="ehunter-label-block">
+                                        <span class="ehunter-label">{{ fieldLabel(fieldId) }}</span>
+                                        <p v-if="fieldTip(fieldId)" class="ehunter-tip">{{ fieldTip(fieldId) }}</p>
+                                    </div>
+                                    <DropOption
+                                        v-if="settingFieldMap[fieldId]?.control === 'drop'"
+                                        :list="getDropList(fieldId)"
+                                        :cur-val="getFieldValue(fieldId)"
+                                        :format-cur-val-by-list="true"
+                                        :use-abbr-name="!!settingFieldMap[fieldId]?.useAbbrName"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                    <NumDropOption
+                                        v-else-if="settingFieldMap[fieldId]?.control === 'num'"
+                                        :quick-options="getNumList(fieldId)"
+                                        :cur-val="getFieldValue(fieldId)"
+                                        :suffix="getNumSuffix(fieldId)"
+                                        :min="settingFieldMap[fieldId]?.min || 0"
+                                        :max="settingFieldMap[fieldId]?.max || 999"
+                                        :is-float="!!settingFieldMap[fieldId]?.isFloat"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                    <SimpleSwitch
+                                        v-else-if="settingFieldMap[fieldId]?.control === 'switch'"
+                                        :active="!!getFieldValue(fieldId)"
+                                        @change="(val) => onFieldChange(fieldId, val)" />
+                                </div>
+                                <div class="ehunter-row">
+                                    <div class="ehunter-label-block">
+                                        <span class="ehunter-label">{{ i18n.superResolutionShaders }}</span>
+                                        <p class="ehunter-tip">{{ i18n.superResolutionShadersTip }}</p>
+                                    </div>
+                                    <button class="ehunter-action" type="button" @click="superResDialogActive = true">
+                                        {{ superResSummary }}
+                                    </button>
+                                </div>
+                            </article>
+
                             <article ref="shortcutsRef" class="ehunter-group" data-category="shortcuts">
                                 <h4>{{ i18n.settingsShortcuts }}</h4>
                                 <p class="ehunter-shortcut-intro">{{ i18n.shortcutEditHint }}</p>
@@ -275,6 +305,7 @@ const scrollRef = ref<HTMLElement | null>(null)
 const bookRef = ref<HTMLElement | null>(null)
 const quickRef = ref<HTMLElement | null>(null)
 const shortcutsRef = ref<HTMLElement | null>(null)
+const superResRef = ref<HTMLElement | null>(null)
 const otherRef = ref<HTMLElement | null>(null)
 const dragSourceId = ref('')
 const openedShortcutDropdown = ref<ShortcutActionId | ''>('')
@@ -339,6 +370,7 @@ const hiddenQuickSettingList = computed(() => {
 const dialogGeneralFieldIds = getDialogFieldIds('general')
 const dialogScrollFieldIds = getDialogFieldIds('scroll')
 const dialogBookFieldIds = getDialogFieldIds('book')
+const dialogSuperResFieldIds = getDialogFieldIds('superRes')
 
 const resetOperations = computed(() => {
     return [
@@ -409,6 +441,8 @@ function getCategoryRef(category: string): HTMLElement | null {
             return bookRef.value
         case 'quick':
             return quickRef.value
+        case 'superRes':
+            return superResRef.value
         case 'shortcuts':
             return shortcutsRef.value
         case 'other':

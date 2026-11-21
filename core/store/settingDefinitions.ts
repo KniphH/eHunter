@@ -7,7 +7,7 @@
  */
 
 type ModeScope = 'both' | 'scroll-only' | 'book-only'
-type SettingsPanelCategory = 'general' | 'scroll' | 'book'
+type SettingsPanelCategory = 'general' | 'scroll' | 'book' | 'superRes'
 type SettingControlType = 'drop' | 'num' | 'switch'
 
 export type ShortcutActionId =
@@ -39,7 +39,7 @@ export interface QuickSettingOption {
 }
 
 export interface SettingsCategory {
-    id: 'general' | 'scroll' | 'book' | 'quick' | 'shortcuts' | 'other'
+    id: 'general' | 'scroll' | 'book' | 'quick' | 'superRes' | 'shortcuts' | 'other'
     i18nKey: string
 }
 
@@ -87,6 +87,7 @@ export const settingsCategories: SettingsCategory[] = [
     { id: 'scroll', i18nKey: 'settingsScrollMode' },
     { id: 'book', i18nKey: 'settingsBookMode' },
     { id: 'quick', i18nKey: 'settingsQuick' },
+    { id: 'superRes', i18nKey: 'settingsSuperRes' },
     { id: 'shortcuts', i18nKey: 'settingsShortcuts' },
     { id: 'other', i18nKey: 'settingsOther' },
 ]
@@ -255,7 +256,7 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         modeScope: 'both',
         showInTopBar: false,
         showInDialog: true,
-        dialogCategory: 'general',
+        dialogCategory: 'superRes',
     },
     {
         id: 'superResCacheLimit',
@@ -265,7 +266,7 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         modeScope: 'both',
         showInTopBar: false,
         showInDialog: true,
-        dialogCategory: 'general',
+        dialogCategory: 'superRes',
         numKey: 'superResCacheLimit',
         min: 2,
         max: 200,
@@ -278,7 +279,7 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         modeScope: 'both',
         showInTopBar: false,
         showInDialog: true,
-        dialogCategory: 'general',
+        dialogCategory: 'superRes',
         dropKey: 'superResEncodeList',
     },
     {
@@ -289,7 +290,7 @@ export const settingFieldDefinitions: SettingFieldDefinition[] = [
         modeScope: 'both',
         showInTopBar: false,
         showInDialog: true,
-        dialogCategory: 'general',
+        dialogCategory: 'superRes',
         numKey: 'superResLookahead',
         min: 1,
         max: 30,
@@ -495,6 +496,7 @@ export const dialogSettingFieldIds: Record<SettingsPanelCategory, string[]> = {
     general: settingFieldDefinitions.filter(item => item.showInDialog && item.dialogCategory === 'general').map(item => item.id),
     scroll: settingFieldDefinitions.filter(item => item.showInDialog && item.dialogCategory === 'scroll').map(item => item.id),
     book: settingFieldDefinitions.filter(item => item.showInDialog && item.dialogCategory === 'book').map(item => item.id),
+    superRes: settingFieldDefinitions.filter(item => item.showInDialog && item.dialogCategory === 'superRes').map(item => item.id),
 }
 
 export const pinnedQuickSettingId = 'readingMode'

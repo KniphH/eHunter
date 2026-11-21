@@ -92,6 +92,6 @@ export function getNumSuffix(id: string): string {
     return (settingConf as any)[field.numKey].suffix || ''
 }
 
-export function getDialogFieldIds(category: 'general' | 'scroll' | 'book'): string[] {
+export function getDialogFieldIds(category: 'general' | 'scroll' | 'book' | 'superRes'): string[] {
     return dialogSettingFieldIds[category]
 }
