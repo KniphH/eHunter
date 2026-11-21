@@ -124,7 +124,12 @@ export class WNACGAlbumServiceImpl implements AlbumService {
        */
       const isViewMode = /\/photos-view-id-/.test(window.location.pathname)
       if (isViewMode) {
-        this.imgListItems = this.collectItemsFromDom()
+        /*
+         * 整本视图是**逐页导航**：每一页是一个独立 HTML（…/photos-view-id-xxxxx.html），
+         * 页 id 不连号，页面里只有 prevpage / nextpage 两个变量指向相邻页。
+         * 所以必须从当前页沿 nextpage 一路走到底，把每页的 #picarea 图片收起来。
+         */
+        this.imgListItems = await this.walkViewPages()
         if (this.imgListItems.length === 0) {
           throw new Error('No images found on this page.')
         }
@@ -132,7 +137,7 @@ export class WNACGAlbumServiceImpl implements AlbumService {
           createStepUpdate(
             this.initializationStepMap.fetchImageList,
             'success',
-            `${this.imgListItems.length} pages (from page)`
+            `${this.imgListItems.length} pages (walked)`
           )
         )
       } else {
@@ -180,41 +185,73 @@ export class WNACGAlbumServiceImpl implements AlbumService {
   }
 
   /**
-   * 整本视图（photos-view-id-*）从页面里直接收集图片。
+   * 整本视图逐页抓取。
    *
-   * 这类页面服务器不提供 photos-item-aid-*.html 列表（请求 404），
-   * 图片直接排在页面里。缩略图/大图可能挂在 data-original / data-src 上，
-   * 所以几个属性都看，只收像图片的地址。
+   * 每一页是独立 HTML，页 id 不连号，靠页面里的 `var nextpage = "..."` 串起来。
+   * 从当前页开始沿链走，每页取 `#picarea` 的图片地址，直到没有 nextpage。
+   * 上限 500 页，防止异常数据把请求打爆。
    */
-  private collectItemsFromDom(): Array<WnacgImgListItem> {
-    const result: Array<WnacgImgListItem> = []
-    const seen = new Set<string>()
-    const nodes = Array.from(document.querySelectorAll('img, a'))
-    for (const node of nodes) {
-      const raw = node.getAttribute('data-original')
-        || node.getAttribute('data-src')
-        || node.getAttribute('src')
-        || node.getAttribute('href')
-        || ''
-      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) {
-        continue
+  private async walkViewPages(): Promise<Array<WnacgImgListItem>> {
+    const items: Array<WnacgImgListItem> = []
+    const seenPages = new Set<string>()
+    let cursor: string | null = location.href
+    let guard = 0
+
+    while (cursor && guard < 500) {
+      guard++
+      if (seenPages.has(cursor)) {
+        break
       }
-      if (!/\.(jpe?g|png|webp|gif)(\?|$)/i.test(raw)) {
-        continue
+      seenPages.add(cursor)
+
+      let htmlText = ''
+      if (cursor === location.href) {
+        htmlText = document.documentElement.outerHTML
+      } else {
+        htmlText = await new TextReq(cursor, true).request()
       }
-      let absolute = raw
-      try {
-        absolute = raw.startsWith('//') ? `https:${raw}` : new URL(raw, location.href).href
-      } catch {
-        continue
+
+      const imgUrl = this.parseViewPageImage(htmlText)
+      if (imgUrl) {
+        items.push({ url: imgUrl, width: 0, height: 0 })
       }
-      if (seen.has(absolute)) {
-        continue
-      }
-      seen.add(absolute)
-      result.push({ url: absolute, width: 0, height: 0 })
+
+      const nextUrl = this.parseViewPageNext(htmlText)
+      cursor = nextUrl && nextUrl !== cursor ? nextUrl : null
     }
-    return result
+
+    return items
+  }
+
+  /** 从单个 view 页的 HTML 里取图片地址：优先 #picarea，其次 .photo */
+  private parseViewPageImage(htmlText: string): string {
+    const picarea = /<img[^>]*id=["']picarea["'][^>]*>/i.exec(htmlText)
+      || /<img[^>]*class=["'][^"']*photo[^"']*["'][^>]*>/i.exec(htmlText)
+    const tag = picarea ? picarea[0] : ''
+    const srcMatch = tag ? /src=["']([^"']+)["']/i.exec(tag) : null
+    const raw = srcMatch ? srcMatch[1] : ''
+    if (!raw || raw.startsWith('data:')) {
+      return ''
+    }
+    try {
+      return raw.startsWith('//') ? `https:${raw}` : new URL(raw, location.href).href
+    } catch {
+      return ''
+    }
+  }
+
+  /** 从单个 view 页的 HTML 里取下一页地址 */
+  private parseViewPageNext(htmlText: string): string {
+    const match = /var\s+nextpage\s*=\s*["']([^"']+)["']/i.exec(htmlText)
+    const raw = match ? match[1] : ''
+    if (!raw || raw === '#' || raw === '') {
+      return ''
+    }
+    try {
+      return raw.startsWith('//') ? `https:${raw}` : new URL(raw, location.href).href
+    } catch {
+      return ''
+    }
   }
 
   private async fetchImgList(noCache = false): Promise<Array<WnacgImgListItem>> {
