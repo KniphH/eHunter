@@ -71,6 +71,17 @@ const MAX_ASPECT_DEVIATION = 3
  */
 const AUTO_RETRY_DELAYS = [1, 1, 2, 3, 5, 5]
 
+/**
+ * 自动刷新（重试用尽后整页重载）的保护键。
+ *
+ * 用 sessionStorage 记次数和时间，避免「一直失败 → 一直刷新」把站点打成
+ * 频率限制（CF 那次教训）。同一会话最多刷 3 次，两次之间至少隔 15 秒；
+ * 任何一页成功加载就清掉计数。
+ */
+const AUTO_RELOAD_KEY = 'ehunter:auto-reload'
+const AUTO_RELOAD_MAX = 3
+const AUTO_RELOAD_GAP_MS = 15000
+
 export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     const { index, albumService, imgPageInfo, warmMagnifierSource, isActive, getImgElement } = options
 
@@ -154,6 +165,35 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         autoRetrySec.value = 0
     }
 
+    /**
+     * 重试用尽后的自动刷新。
+     *
+     * 带三道闸：会话内最多 3 次、两次间隔 ≥15 秒、任何一页加载成功就清零。
+     * 没有这些限制，永久性失败会变成无限重载。
+     */
+    function requestAutoReload(): void {
+        try {
+            const raw = window.sessionStorage.getItem(AUTO_RELOAD_KEY)
+            const state = raw ? (JSON.parse(raw) as { count: number, at: number }) : { count: 0, at: 0 }
+            if (state.count >= AUTO_RELOAD_MAX || Date.now() - state.at < AUTO_RELOAD_GAP_MS) {
+                return
+            }
+            window.sessionStorage.setItem(
+                AUTO_RELOAD_KEY,
+                JSON.stringify({ count: state.count + 1, at: Date.now() }),
+            )
+        } catch {
+            // 记录不了就不刷，宁可停在错误提示上，也不要变成无限重载
+            return
+        }
+        try {
+            window.localStorage.setItem('ehunter:resume-index', String(store.curViewIndex))
+        } catch {
+            // 记不住阅读位置也无妨
+        }
+        window.location.reload()
+    }
+
     /** 用户手动重试 / 成功加载后，退避次数从头算 */
     function resetAutoRetry() {
         clearAutoRetryTimer()
@@ -167,7 +207,12 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
      * 那种情况交给页面层的可见性重开逻辑。
      */
     function scheduleAutoRetry() {
-        if (!isActive() || autoRetryCount >= AUTO_RETRY_DELAYS.length) {
+        if (!isActive()) {
+            return
+        }
+        if (autoRetryCount >= AUTO_RETRY_DELAYS.length) {
+            // 退避重试用尽：不再干等用户点「刷新」，直接整页重载
+            requestAutoReload()
             return
         }
         clearAutoRetryTimer()
@@ -782,6 +827,12 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     function loaded(e?: Event) {
         if (e && isStaleEvent(e)) {
             return
+        }
+        // 只要有一页真正加载成功，就把自动刷新的计数清零
+        try {
+            window.sessionStorage.removeItem(AUTO_RELOAD_KEY)
+        } catch {
+            // 忽略
         }
         const hasWaiter = pendingSettle !== null
         if (!settlePending(true)) {
