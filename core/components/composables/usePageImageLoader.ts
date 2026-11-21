@@ -170,9 +170,14 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
      * 那种情况交给页面层的可见性重开逻辑。
      */
     function scheduleAutoRetry() {
-        if (!isActive()) {
-            return
-        }
+        /*
+         * 这里**不能**因为当前页不在视口就放弃重试。
+         * isActive 反映的是「这页是否在视口附近」，用户滚去别页时它会变成 false；
+         * 早先在这里 return，等于滚走时正在失败的页被永久放弃，
+         * 滚回来只会看到一个停住的失败提示，必须手动点——
+         * 这正是「NH 有时会停止重试」的来源。
+         * 宁可后台多试几次，也不要让用户回来面对一个死掉的页。
+         */
         clearAutoRetryTimer()
         // 前 6 次按退避节奏，之后固定 5 秒一次、无限重试
         const delay = autoRetryCount < AUTO_RETRY_DELAYS.length
