@@ -1115,7 +1115,14 @@ class SuperResolutionService {
     }
 
     private invalidateEverything(): void {
+        /*
+         * 必须连 WebGL 槽位一起释放。
+         * 之前只清 resultCache，已编译好的 shader program 还留在 slots 里，
+         * 换算法后 ensureSlot 拿到的还是旧程序——表现就是「取消勾选 x2 后画面照样放大」。
+         */
         this.clearCache()
+        // 释放全部 WebGL 槽位（-1 = 全部）
+        this.releaseSlotAt(-1)
     }
 
     private invalidateSlot(): void {

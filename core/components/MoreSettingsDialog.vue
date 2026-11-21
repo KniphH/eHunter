@@ -320,8 +320,9 @@ watch(() => store.superResShaderVersion, () => {
 })
 
 const superResSummary = computed(() => {
+    // 每次求值都直接问服务要最新的文件列表，不依赖任何快照
     void store.superResShaderVersion
-    const files = superResFiles.value
+    const files = superResolutionService.getShaderFiles()
     if (files.length === 0) {
         return i18n.value.superResolutionConfigure
     }
