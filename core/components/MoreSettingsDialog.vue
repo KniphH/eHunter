@@ -315,7 +315,9 @@ const superResDialogActive = ref(false)
 const superResFiles = ref(superResolutionService.getShaderFiles())
 
 const superResSummary = computed(() => {
-    const files = superResFiles.value
+    // 依赖版本号：算法勾选/排序变化后要重新读一遍，否则按钮上的文字不更新
+    void store.superResShaderVersion
+    const files = superResolutionService.getShaderFiles()
     if (files.length === 0) {
         return i18n.value.superResolutionConfigure
     }

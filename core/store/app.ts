@@ -454,7 +454,6 @@ function applyUnifiedSettingsPreference() {
         ['IsReverseBookWheeFliplDirection', 'IsReverseBookWheeFliplDirection'],
         ['autoRetryByOtherSource', 'autoRetryByOtherSource'],
         ['superResEnabled', 'superResEnabled'],
-        ['superResCacheLimit', 'superResCacheLimit'],
         ['hasShownWelcomeInstruction', 'hasShownWelcomeInstruction'],
         ['hasShownBookInstruction', 'hasShownBookInstruction'],
     ]
@@ -462,6 +461,17 @@ function applyUnifiedSettingsPreference() {
         if (typeof setting[sourceKey] === 'boolean') {
             ;(<any>store)[targetKey] = setting[sourceKey]
         }
+    }
+
+    /*
+     * 数字型设置要单独恢复。
+     * 早先 superResCacheLimit 被放进上面的 boolFields 列表，
+     * 而那里只接受 boolean，数字永远不满足条件——于是每次重开都退回默认值，
+     * 表现就是「这个值改了保存不住」。
+     */
+    if (typeof setting.superResCacheLimit === 'number' && Number.isFinite(setting.superResCacheLimit)) {
+        store.superResCacheLimit = Math.max(2, Math.min(200, Math.floor(setting.superResCacheLimit)))
+        setSuperResCacheLimit(store.superResCacheLimit)
     }
 
     store.pageTurnAnimationMode = normalizePageTurnAnimationMode(setting.pageTurnAnimationMode)
@@ -617,6 +627,9 @@ export const store = reactive({
     superResEnabled: false,
     /** 超分结果缓存池大小（页数）。预加载只有几页时没必要压太多 */
     superResCacheLimit: 24,
+    /** 算法文件变化计数：勾选/排序/增删后自增，用来刷新依赖它的摘要 */
+    superResShaderVersion: 0,
+    /** 算法文件变化计数：勾选/排序/增删后自增，用来刷新依赖它的摘要 */
     // 手机默认 JPEG：同页体积约为 PNG 的 1/12，编码也更快，避免 8 页缓存把内存撑爆
     superResEncode: <SuperResEncode>(isMobileDevice() ? 'jpeg' : 'png'),
     hasShownWelcomeInstruction: false,
@@ -1189,6 +1202,8 @@ export const storeAction = {
      * 这里先把 displaySrc 清掉退回原图，再统一补跑。
      */
     refreshSuperResAfterShaderChange: () => {
+        // 先让摘要之类的依赖项失效，即便超分关着也要刷新列表展示
+        store.superResShaderVersion++
         if (!store.superResEnabled) {
             return
         }

@@ -5,6 +5,26 @@ export const superres: Record<string, { cn: string, en: string, jp: string }> = 
         en: 'Super resolution',
         jp: '超解像'
     },
+    superResCacheLimit: {
+        cn: '超分缓存池',
+        en: 'Super-res cache size',
+        jp: '超解像キャッシュ数'
+    },
+    superResCacheLimitTip: {
+        cn: '最多保留多少页的超分结果。调大翻页更顺、占用内存更多；调小更省内存，但回看旧页要重新超分',
+        en: 'How many super-resolved pages to keep. Larger = smoother paging, more memory.',
+        jp: '超解像結果を保持するページ数。大きいほど滑らかだがメモリを多く使う'
+    },
+    superResolutionEnable: {
+        cn: '启用这个算法',
+        en: 'Enable this shader',
+        jp: 'このシェーダーを有効化'
+    },
+    settingsSuperRes: {
+        cn: '超分',
+        en: 'Super resolution',
+        jp: '超解像'
+    },
     superResolutionTip: {
         cn: '用你自己选的 .glsl 算法文件（Anime4K 等）对图片做超分，先到下方「超分算法文件」里选文件',
         en: 'Upscale pages with your own .glsl shader files (Anime4K etc.); pick files in "Super resolution shaders" first',
