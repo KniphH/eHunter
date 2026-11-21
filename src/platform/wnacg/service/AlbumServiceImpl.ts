@@ -135,18 +135,23 @@ export class WNACGAlbumServiceImpl implements AlbumService {
       const isViewMode = /\/photos-view-id-/.test(window.location.pathname)
       if (isViewMode) {
         /*
-         * 整本视图是**逐页导航**：每一页是一个独立 HTML（…/photos-view-id-xxxxx.html），
-         * 页 id 不连号，页面里只有 prevpage / nextpage 两个变量指向相邻页。
-         * 所以必须从当前页沿 nextpage 一路走到底，把每页的 #picarea 图片收起来。
+         * photos-view-id 没有自己的图片列表，只能逐页走 nextpage。
+         * 但它能顺链找到同一本相册的 slide-aid 页面（view-id → index → slide-aid），
+         * 那边有完整的 photos-item-aid-*.html 列表——一次请求拿全。
+         * 只有整条链都找不到 slide-aid 时，才退回逐页走。
          */
-        const firstBatch = await this.walkViewPages(INITIAL_WALK_PAGES)
-        this.imgListItems = firstBatch.items
-        if (this.imgListItems.length === 0) {
-          throw new Error('No images found on this page.')
+        const slideAid = await this.resolveSlideAid()
+        if (slideAid) {
+          this.albumId = slideAid
+          this.imgListUrl = `/photos-item-aid-${slideAid}.html`
+          this.imgListItems = await this.fetchImgList()
         }
-        // 先把首屏交出去，剩余页在后台继续沿链走，扫到就更新页数
-        if (firstBatch.nextCursor) {
-          void this.continueWalkInBackground(firstBatch.nextCursor)
+        if (this.imgListItems.length === 0) {
+          const firstBatch = await this.walkViewPages(INITIAL_WALK_PAGES)
+          this.imgListItems = firstBatch.items
+          if (firstBatch.nextCursor) {
+            void this.continueWalkInBackground(firstBatch.nextCursor)
+          }
         }
         this.updateInitializationStep(
           createStepUpdate(
@@ -207,25 +212,37 @@ export class WNACGAlbumServiceImpl implements AlbumService {
    * 上限 500 页，防止异常数据把请求打爆。
    */
   /**
-   * 从当前文档里找相册 aid。
+   * 找出这本相册的 slide-aid。
    *
-   * view-id 页面本身带 /photos-index-aid-{aid}.html 这样的链接（面包屑/返回），
-   * 抠出其中的数字即可。拿到真正的 aid 后就能一次请求图片列表，
-   * 不必沿 nextpage 逐页走。
+   * photos-view-id-* 页面本身没有图片列表（没有 photos-item-aid-*.html），
+   * 只能逐页走 nextpage，31 页就是 31 次串行请求。
+   *
+   * 但这些页面里带着「相册索引」链接（/photos-index-aid-{x}.html），
+   * 索引页里又有「幻灯片阅读」链接（/photos-slide-aid-{y}.html），
+   * 而 slide-aid 页面才提供 photos-item-aid-{y}.html 那份完整图片列表。
+   *
+   * 所以顺着走两步：view-id → index → slide-aid，然后一次把列表拿到。
+   * 最多 2 次请求，比 31 次串行快一个数量级。
    */
-  private readAidFromDocument(): string {
-    const html = document.documentElement.innerHTML
-    const patterns = [
-      /photos-index-aid-(\d+)\.html/i,
-      /photos-item-aid-(\d+)\.html/i,
-      /photos-slide-aid-(\d+)\.html/i,
-      /aid-(\d+)/i,
-    ]
-    for (const pattern of patterns) {
-      const match = pattern.exec(html)
-      if (match) {
-        return match[1]
+  private async resolveSlideAid(): Promise<string> {
+    const pageHtml = document.documentElement.innerHTML
+    const localSlide = /photos-slide-aid-(\d+)\.html/i.exec(pageHtml)
+    if (localSlide) {
+      return localSlide[1]
+    }
+
+    const indexMatch = /photos-index-aid-(\d+)\.html/i.exec(pageHtml)
+    if (!indexMatch) {
+      return ''
+    }
+    try {
+      const indexHtml = await new TextReq(`/photos-index-aid-${indexMatch[1]}.html`).request()
+      const slideMatch = /photos-slide-aid-(\d+)\.html/i.exec(indexHtml)
+      if (slideMatch) {
+        return slideMatch[1]
       }
+    } catch (error) {
+      Logger.logText('WNACG', `index page fetch failed: ${String((error as Error)?.message || error)}`)
     }
     return ''
   }
