@@ -11,6 +11,7 @@ import { ThumbMode } from '../../../../core/model/model'
 import { ImgListParser, type WnacgImgListItem } from '../parser/ImgListParser'
 import { IntroHtmlParser, type WnacgIntroThumb } from '../parser/IntroHtmlParser'
 import { TextReq } from '../../base/request/TextReq'
+import Logger from '../../../../core/utils/logger'
 import type { InitializationStepUpdate } from '../../types'
 import {
   WNACG_INITIALIZATION_STEPS,
@@ -22,6 +23,10 @@ import {
 const DEFAULT_HEIGHT_OF_WIDTH = 1.4
 const THUMB_BASE_WIDTH = 200
 const INTRO_PAGE_CONCURRENCY = 3
+/** 首屏先扫这么多页，够看到开头就行 */
+const INITIAL_WALK_PAGES = 12
+/** 后台每批扫这么多页 */
+const BACKGROUND_WALK_PAGES = 20
 // image urls are signed and expire, a re-request of the same page refreshes the list (at most once per interval)
 const IMG_LIST_REFRESH_INTERVAL_MS = 15000
 
@@ -129,9 +134,14 @@ export class WNACGAlbumServiceImpl implements AlbumService {
          * 页 id 不连号，页面里只有 prevpage / nextpage 两个变量指向相邻页。
          * 所以必须从当前页沿 nextpage 一路走到底，把每页的 #picarea 图片收起来。
          */
-        this.imgListItems = await this.walkViewPages()
+        const firstBatch = await this.walkViewPages(INITIAL_WALK_PAGES)
+        this.imgListItems = firstBatch.items
         if (this.imgListItems.length === 0) {
           throw new Error('No images found on this page.')
+        }
+        // 先把首屏交出去，剩余页在后台继续沿链走，扫到就更新页数
+        if (firstBatch.nextCursor) {
+          void this.continueWalkInBackground(firstBatch.nextCursor)
         }
         this.updateInitializationStep(
           createStepUpdate(
@@ -191,13 +201,25 @@ export class WNACGAlbumServiceImpl implements AlbumService {
    * 从当前页开始沿链走，每页取 `#picarea` 的图片地址，直到没有 nextpage。
    * 上限 500 页，防止异常数据把请求打爆。
    */
-  private async walkViewPages(): Promise<Array<WnacgImgListItem>> {
+  /**
+   * 沿 nextpage 链逐页抓取。
+   *
+   * 页面之间靠 `var nextpage` 串起来，页 id 不连号，所以没法并发——只能一页一页走。
+   * 整本 30 页就是 30 次串行请求，首屏要等好几秒。
+   * 因此传入 limit：初始化只扫前几页，先让用户看到内容，剩下的在后台继续补。
+   */
+  private async walkViewPages(limit = 500, startCursor?: string): Promise<{ items: Array<WnacgImgListItem>, nextCursor: string | null }> {
     const items: Array<WnacgImgListItem> = []
     const seenPages = new Set<string>()
-    let cursor: string | null = location.href
+    let cursor: string | null = startCursor || location.href
     let guard = 0
+    let consumed = 0
 
     while (cursor && guard < 500) {
+      if (consumed >= limit) {
+        return { items, nextCursor: cursor }
+      }
+      consumed++
       guard++
       if (seenPages.has(cursor)) {
         break
@@ -221,7 +243,32 @@ export class WNACGAlbumServiceImpl implements AlbumService {
       cursor = nextUrl && nextUrl !== cursor ? nextUrl : null
     }
 
-    return items
+    return { items, nextCursor: null }
+  }
+
+  /**
+   * 后台继续把剩下的页扫完。
+   *
+   * 每扫一批就更新 imgListItems / pageCount，UI 会跟着长出来。
+   * 失败就停下，不影响已经显示的部分。
+   */
+  private async continueWalkInBackground(cursor: string): Promise<void> {
+    let nextCursor: string | null = cursor
+    while (nextCursor) {
+      try {
+        const batch = await this.walkViewPages(BACKGROUND_WALK_PAGES, nextCursor)
+        if (batch.items.length === 0) {
+          break
+        }
+        this.imgListItems = [...this.imgListItems, ...batch.items]
+        this.pageCount = this.imgListItems.length
+        this.buildPageInfos([])
+        nextCursor = batch.nextCursor
+      } catch (error) {
+        Logger.logText('WNACG', `background walk stopped: ${String((error as Error)?.message || error)}`)
+        break
+      }
+    }
   }
 
   /** 从单个 view 页的 HTML 里取图片地址：优先 #picarea，其次 .photo */
