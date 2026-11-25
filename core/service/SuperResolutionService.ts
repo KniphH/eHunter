@@ -101,6 +101,10 @@ export function setSuperResCacheLimit(value: number): void {
 
 /** 失败后多久允许重试。网络抖动、临时超时不该让这一页永久失去超分 */
 const FAILED_RETRY_MS = 15_000
+/** 失败后最多自动重试几次（退避间隔翻倍，封顶 5 分钟） */
+const MAX_SUPERRES_RETRIES = 6
+/** 单次重试的最大等待间隔 */
+const MAX_RETRY_DELAY_MS = 300_000
 
 /**
  * 同时渲染几页。
@@ -889,6 +893,12 @@ class SuperResolutionService {
     private ownUrls = new Set<string>()
     /** 缓存淘汰/清空时通知 UI，让正显示着那张超分图的页先退回原图 */
     private evictListener: ((url: string) => void) | null = null
+    /** 自动重试成功后通知 UI 把那页换成超分图 */
+    private resultListener: ((sourceUrl: string, url: string) => void) | null = null
+    /** 待重试的定时器：sourceUrl -> timer */
+    private retryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+    /** 每个地址连续失败了几次，用于退避与上限 */
+    private retryAttempts = new Map<string, number>()
 
     getShaderFiles(): SuperResShaderFile[] {
         return readShaderFiles()
@@ -960,9 +970,12 @@ class SuperResolutionService {
             .then((result) => {
                 if (!result) {
                     this.failed.set(sourceUrl, Date.now())
+                    this.scheduleRetry(sourceUrl, priority)
                     return sourceUrl
                 }
                 this.store(sourceUrl, result)
+                this.retryAttempts.delete(sourceUrl)
+                this.clearRetry(sourceUrl)
                 Logger.logText('SUPERRES', `ok ${result.sourceWidth}x${result.sourceHeight} -> ${result.width}x${result.height}, ${Math.round(result.costMs)}ms, ${result.params} passes`)
                 return result.url
             })
@@ -973,6 +986,7 @@ class SuperResolutionService {
                 }
                 this.failed.set(sourceUrl, Date.now())
                 Logger.logText('SUPERRES', `failed: ${sourceUrl} ${String(error && (error as Error).message || error)}`)
+                this.scheduleRetry(sourceUrl, priority)
                 return sourceUrl
             })
             .finally(() => {
@@ -1042,6 +1056,11 @@ class SuperResolutionService {
         this.resultCache.clear()
         this.ownUrls.clear()
         this.failed.clear()
+        for (const timer of this.retryTimers.values()) {
+            clearTimeout(timer)
+        }
+        this.retryTimers.clear()
+        this.retryAttempts.clear()
         for (const url of urls) {
             this.evictListener?.(url)
             URL.revokeObjectURL(url)
@@ -1069,6 +1088,58 @@ class SuperResolutionService {
      */
     setEvictListener(listener: ((url: string) => void) | null): void {
         this.evictListener = listener
+    }
+
+    /**
+     * 注册「自动重试成功」的回调。
+     *
+     * 超分失败后会在后台退避重试，这时页面早就显示着原图了。
+     * 没有这个回调，即便重试成功也没人把结果换上去，用户看到的就是「跳过不重试」。
+     */
+    setResultListener(listener: ((sourceUrl: string, url: string) => void) | null): void {
+        this.resultListener = listener
+    }
+
+    /** 取消某个地址的待重试任务 */
+    private clearRetry(sourceUrl: string): void {
+        const timer = this.retryTimers.get(sourceUrl)
+        if (timer !== undefined) {
+            clearTimeout(timer)
+            this.retryTimers.delete(sourceUrl)
+        }
+    }
+
+    /**
+     * 安排一次延迟重试。
+     *
+     * 之前失败只是往 failed 里记个时间戳就结束了——而 resolve 只在图片加载完成时被调用一次，
+     * 那页之后永远没人再来问，于是永远停在原图，看起来就是「失败后直接跳过」。
+     * 这里用退避间隔自动再来：15s → 30s → 60s → 120s → 240s → 300s，共 6 次。
+     */
+    private scheduleRetry(sourceUrl: string, priority: number): void {
+        const attempt = (this.retryAttempts.get(sourceUrl) || 0) + 1
+        this.retryAttempts.set(sourceUrl, attempt)
+        if (attempt > MAX_SUPERRES_RETRIES) {
+            Logger.logText('SUPERRES', `give up after ${MAX_SUPERRES_RETRIES} retries: ${sourceUrl}`)
+            this.retryAttempts.delete(sourceUrl)
+            this.clearRetry(sourceUrl)
+            return
+        }
+        const delay = Math.min(FAILED_RETRY_MS * Math.pow(2, attempt - 1), MAX_RETRY_DELAY_MS)
+        this.clearRetry(sourceUrl)
+        const timer = setTimeout(() => {
+            this.retryTimers.delete(sourceUrl)
+            // 清掉失败记录，否则 resolve 会在开头就被挡回来
+            this.failed.delete(sourceUrl)
+            void this.resolve(sourceUrl, priority).then((url) => {
+                if (url && url !== sourceUrl) {
+                    this.retryAttempts.delete(sourceUrl)
+                    this.resultListener?.(sourceUrl, url)
+                }
+            })
+        }, delay)
+        this.retryTimers.set(sourceUrl, timer)
+        Logger.logText('SUPERRES', `retry #${attempt} in ${Math.round(delay / 1000)}s: ${sourceUrl}`)
     }
 
     /** 取某张原图的超分结果描述。缓存里没有就返回 null */

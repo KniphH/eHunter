@@ -902,6 +902,25 @@ superResolutionService.setEvictListener((url) => {
     }
 })
 
+/*
+ * 自动重试成功后的回写。
+ *
+ * 超分失败时页面已经退回原图显示，之后服务在后台退避重试。
+ * 成功时必须有人把结果换到那一页上，否则用户永远看不到它——
+ * 这正是「失败后直接跳过、再也不重试」的观感来源。
+ */
+superResolutionService.setResultListener((sourceUrl, url) => {
+    const index = store.imgPageInfos.findIndex(info => info.src === sourceUrl)
+    if (index < 0) {
+        return
+    }
+    // 只替换此刻仍显示原图的那一页，避免覆盖用户已经切走的页
+    const info = store.imgPageInfos[index]
+    if (info && !info.displaySrc) {
+        info.displaySrc = url
+    }
+})
+
 // 把存储里读到的池大小同步给超分服务（服务不认识 store，避免循环依赖）
 setSuperResCacheLimit(store.superResCacheLimit)
 
