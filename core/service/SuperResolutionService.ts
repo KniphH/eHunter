@@ -100,11 +100,14 @@ export function setSuperResCacheLimit(value: number): void {
 }
 
 /** 失败后多久允许重试。网络抖动、临时超时不该让这一页永久失去超分 */
-const FAILED_RETRY_MS = 15_000
-/** 失败后最多自动重试几次（退避间隔翻倍，封顶 5 分钟） */
-const MAX_SUPERRES_RETRIES = 6
-/** 单次重试的最大等待间隔 */
-const MAX_RETRY_DELAY_MS = 300_000
+/**
+ * 失败后多久重试：**立刻**。
+ *
+ * 用 0 而不是同步递归，是为了让出一次事件循环——
+ * 同步重试会形成「失败 → 立刻重试 → 失败」的死循环，直接把页面卡死。
+ * setTimeout(..., 0) 在浏览器的表现就是「马上，但先让别的事跑完」。
+ */
+const FAILED_RETRY_MS = 0
 
 /**
  * 同时渲染几页。
@@ -764,6 +767,16 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
     return files
 }
 
+/**
+ * 判断一条超分失败是否属于「重试也没用」的永久性错误。
+ *
+ * 着色器编译/链接失败是算法文件本身的问题，环境不支持是硬件问题——
+ * 这两类立刻无限重试只会把 CPU 打满，画面不会变好。
+ */
+function isPermanentRenderError(message: string): boolean {
+    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected/i.test(message)
+}
+
 /** 只取启用的文件（执行链用） */
 function readActiveShaderFiles(): SuperResShaderFile[] {
     return readShaderFiles().filter(file => file.enabled !== false)
@@ -942,6 +955,14 @@ class SuperResolutionService {
         if (!sourceUrl) {
             return sourceUrl
         }
+        /*
+         * 环境不支持（没有 WebGL2 / 没有浮点色彩缓冲）时直接返回原图。
+         * 这个判断之前只写在 isSupported() 里而没有任何调用点，
+         * 配上「失败后 1 秒无限重试」就会变成每秒新建一个 canvas，非常危险。
+         */
+        if (!this.isSupported()) {
+            return sourceUrl
+        }
         // 只挡「自己产出的结果」，不能按 blob: 前缀一刀切——
         // 否则任何 blob 图片都会被当成"已经超分过"直接跳过。
         if (this.ownUrls.has(sourceUrl)) {
@@ -985,8 +1006,16 @@ class SuperResolutionService {
                     return sourceUrl
                 }
                 this.failed.set(sourceUrl, Date.now())
-                Logger.logText('SUPERRES', `failed: ${sourceUrl} ${String(error && (error as Error).message || error)}`)
-                this.scheduleRetry(sourceUrl, priority)
+                const reason = String(error && (error as Error).message || error)
+                Logger.logText('SUPERRES', `failed: ${sourceUrl} ${reason}`)
+                /*
+                 * 着色器编译/链接失败、环境不支持这类问题是**配置或硬件**层面的，
+                 * 立刻重试一亿次也还是同样的错。这类不排重试（用户换文件后会 clearCache 重新开始）。
+                 * 其余失败（下载中断、context lost、编码失败）都是瞬时的，立刻重试。
+                 */
+                if (!isPermanentRenderError(reason)) {
+                    this.scheduleRetry(sourceUrl, priority)
+                }
                 return sourceUrl
             })
             .finally(() => {
@@ -1110,22 +1139,23 @@ class SuperResolutionService {
     }
 
     /**
-     * 安排一次延迟重试。
+     * 安排一次重试。
      *
      * 之前失败只是往 failed 里记个时间戳就结束了——而 resolve 只在图片加载完成时被调用一次，
      * 那页之后永远没人再来问，于是永远停在原图，看起来就是「失败后直接跳过」。
-     * 这里用退避间隔自动再来：15s → 30s → 60s → 120s → 240s → 300s，共 6 次。
+     *
+     * 现在：**失败就立刻重试，一直重试**，不设次数上限、不做退避。
+     * 一页漫画在屏幕上只停留几秒，任何延时都等于放弃。
+     * 真要停下，由用户翻走 / 换作品（clearCache）来结束。
      */
     private scheduleRetry(sourceUrl: string, priority: number): void {
-        const attempt = (this.retryAttempts.get(sourceUrl) || 0) + 1
-        this.retryAttempts.set(sourceUrl, attempt)
-        if (attempt > MAX_SUPERRES_RETRIES) {
-            Logger.logText('SUPERRES', `give up after ${MAX_SUPERRES_RETRIES} retries: ${sourceUrl}`)
-            this.retryAttempts.delete(sourceUrl)
-            this.clearRetry(sourceUrl)
+        // 环境不支持属于永久性失败，重试多少次都不会好，只会白建 canvas
+        if (!this.isSupported()) {
             return
         }
-        const delay = Math.min(FAILED_RETRY_MS * Math.pow(2, attempt - 1), MAX_RETRY_DELAY_MS)
+        const attempt = (this.retryAttempts.get(sourceUrl) || 0) + 1
+        this.retryAttempts.set(sourceUrl, attempt)
+        const delay = FAILED_RETRY_MS
         this.clearRetry(sourceUrl)
         const timer = setTimeout(() => {
             this.retryTimers.delete(sourceUrl)
@@ -1139,7 +1169,7 @@ class SuperResolutionService {
             })
         }, delay)
         this.retryTimers.set(sourceUrl, timer)
-        Logger.logText('SUPERRES', `retry #${attempt} in ${Math.round(delay / 1000)}s: ${sourceUrl}`)
+        Logger.logText('SUPERRES', `retry #${attempt}: ${sourceUrl}`)
     }
 
     /** 取某张原图的超分结果描述。缓存里没有就返回 null */

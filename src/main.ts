@@ -1,5 +1,6 @@
 import { createApp, ref, h } from 'vue'
 import { setMountPoint } from '../core/store/shadow'
+import { superResolutionService } from '../core/service/SuperResolutionService'
 import TestApp from '../core/TestApp.vue'
 import LoadingView from '../core/components/LoadingView.vue'
 import '../core/style/_normalize.scss'
@@ -530,6 +531,13 @@ function stopEHunter(): void {
    * 列表页就一片空白，只能手动刷新。
    */
   restoreHostImageLoading()
+
+  /*
+   * 关掉阅读器就把超分的重试定时器和缓存一起清掉。
+   * 失败重试是 1 秒一次、不设上限的，如果换作品或离开后还留着，
+   * 会对着早就没人看的页一直重算。
+   */
+  superResolutionService.clearCache()
 
   document.body.style.overflow = ''
   document.documentElement.style.overflow = ''
