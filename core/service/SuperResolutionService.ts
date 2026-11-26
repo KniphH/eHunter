@@ -951,7 +951,7 @@ class SuperResolutionService {
      * `priority` 决定排队顺序，越小越先（见 renderQueue）。调用方用「离当前页的距离」传值：
      * 当前页 0、相邻页 10、再远 20…… 不传就排到队尾。
      */
-    async resolve(sourceUrl: string, priority: number = DEFAULT_RENDER_PRIORITY): Promise<string> {
+    async resolve(sourceUrl: string, priority: number = DEFAULT_RENDER_PRIORITY, imageElement?: HTMLImageElement | null): Promise<string> {
         if (!sourceUrl) {
             return sourceUrl
         }
@@ -987,7 +987,7 @@ class SuperResolutionService {
         // 只在**真的要开算**时记一次未命中。放在前面会把「同一个失败地址被反复调用」
         // 也算进去，命中率被拉成 0%，看着像缓存没用上
         this.missCount++
-        const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId))
+        const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId, imageElement))
             .then((result) => {
                 if (!result) {
                     this.failed.set(sourceUrl, Date.now())
@@ -1382,12 +1382,36 @@ class SuperResolutionService {
         }
     }
 
-    private async render(sourceUrl: string, workerId = 0): Promise<SuperResResult | null> {
+    private async render(sourceUrl: string, workerId = 0, imageElement?: HTMLImageElement | null): Promise<SuperResResult | null> {
         const slot = this.ensureSlot(workerId)
         const startedAt = performance.now()
-        const blob = await fetchImageBlob(sourceUrl, 'superres')
-        const afterFetch = performance.now()
-        const bitmap = await createImageBitmap(blob)
+        /*
+         * 优先复用页面上那张已经加载好的 <img>。
+         *
+         * 超分原来一律走 GM_xmlhttpRequest 重新拉一次原图——那是不吃浏览器缓存的，
+         * 于是同一张图「显示下载一次、超分再下载一次」，大图上光这一项就是两三秒。
+         * 页面上的 <img> 此刻已经解码在内存里，createImageBitmap 可以直接拿它的位图。
+         *
+         * 限制：跨域且没给 CORS 头的图会污染 canvas，这时 createImageBitmap 会 reject，
+         * 落到下面的下载路径，行为与以前一致。
+         */
+        let bitmap: ImageBitmap | null = null
+        let blob: Blob | null = null
+        let afterFetch = 0
+        if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
+            try {
+                bitmap = await createImageBitmap(imageElement)
+            } catch {
+                // 跨域污染，退回下载
+            }
+        }
+        if (!bitmap) {
+            blob = await fetchImageBlob(sourceUrl, 'superres')
+            afterFetch = performance.now()
+            bitmap = await createImageBitmap(blob)
+        } else {
+            afterFetch = performance.now()
+        }
         const afterDecode = performance.now()
         try {
             if (bitmap.width > slot.renderer.maxSize || bitmap.height > slot.renderer.maxSize) {
@@ -1410,12 +1434,13 @@ class SuperResolutionService {
                 width: size.width,
                 height: size.height,
                 passes: slot.passes.length,
+                fetchMs: afterFetch - startedAt,
                 decodeMs: afterDecode - afterFetch,
                 gpuMs: afterGpu - afterDecode,
                 encodeMs: finishedAt - afterGpu,
                 totalMs: finishedAt - startedAt,
                 bytes: outBlob.size,
-                sourceBytes: blob.size,
+                sourceBytes: blob ? blob.size : 0,
             })
             return {
                 url: URL.createObjectURL(outBlob),
@@ -1426,7 +1451,7 @@ class SuperResolutionService {
                 params: slot.passes.length,
                 costMs: finishedAt - startedAt,
                 bytes: outBlob.size,
-                sourceBytes: blob.size,
+                sourceBytes: blob ? blob.size : 0,
             }
         } finally {
             bitmap.close()

@@ -45,6 +45,8 @@ export interface RenderSample {
     /** 输出字节数（编码之后） */
     bytes: number
     passes: number
+    /** 拉原图的网络耗时。之前没记，导致「合计」比三段之和多出好几秒，看着像算错了 */
+    fetchMs: number
     decodeMs: number
     gpuMs: number
     encodeMs: number

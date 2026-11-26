@@ -398,8 +398,9 @@ const superRows = computed(() => {
         })
         rows.push({
             key: t('statsBreakdown'),
-            value: `${t('statsDecode')} ${formatMs(last.decodeMs)} · ${t('statsGpu')} ${formatMs(last.gpuMs)}`
-                + ` · ${t('statsEncode')} ${formatMs(last.encodeMs)} · ${t('statsTotalMs')} ${formatMs(last.totalMs)}`,
+            value: `${t('statsFetchMs')} ${formatMs(last.fetchMs)} · ${t('statsDecode')} ${formatMs(last.decodeMs)}`
+                + ` · ${t('statsGpu')} ${formatMs(last.gpuMs)} · ${t('statsEncode')} ${formatMs(last.encodeMs)}`
+                + ` · ${t('statsTotalMs')} ${formatMs(last.totalMs)}`,
         })
         // 「解码 → 渲染 → 编码」这一段超过阈值：多半是手机在跑大图，提示一下别以为是卡死。
         // 不用 totalMs：那还包含取图（网络），网络慢不该被算成超分慢。

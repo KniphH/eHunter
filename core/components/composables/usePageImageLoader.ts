@@ -854,7 +854,13 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         if (!isInSuperResWindow(index, store.curViewIndex, store.superResLookahead)) {
             return
         }
-        const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index))
+        /*
+         * 把页面上这张已经解码好的 <img> 一起传下去，超分就能省掉一次原图下载。
+         * 只在它当前显示的确实是这张原图时才复用——换源/换页时 img 可能已经是别的图。
+         */
+        const imgElement = getImgElement()
+        const reusable = imgElement && imgElement.currentSrc === originalSrc ? imgElement : null
+        const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index), reusable)
         // 这段时间里可能已经换页/换源/关掉超分，过期结果直接丢
         if (imgPageInfo.value.src !== originalSrc || !store.superResEnabled) {
             return
