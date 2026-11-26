@@ -281,8 +281,12 @@ export class WNACGAlbumServiceImpl implements AlbumService {
 
       const imgUrl = this.parseViewPageImage(htmlText)
       if (imgUrl) {
-        const size = await probeImageSize(imgUrl)
-        items.push({ url: imgUrl, width: size.width, height: size.height })
+        /*
+         * 不再为了拿宽高把整张图下载一遍。
+         * 之前每页一次 new Image()，等于把整本漫画又下载了一次——
+         * 比例交给显示时的 loaded() 校正就够（那时图已经在内存里）。
+         */
+        items.push({ url: imgUrl, width: 0, height: 0 })
       }
 
       const nextUrl = this.parseViewPageNext(htmlText)
@@ -488,26 +492,3 @@ function getTitleFromDocument(): string {
   return document.title.replace(/\s+-\s+列表\s+-\s+[\s\S]*$/, '').trim()
 }
 
-/**
- * 探测一张图的真实尺寸。
- *
- * wnacg 整本视图的页面里没有 width/height 属性，也没有尺寸数据，
- * 而书页模式是「高度 = 宽度 × 高宽比」并把图片拉伸填满容器——
- * 比例不准就会像之前那样被横向拉宽。所以这里真的把图加载一次拿尺寸。
- * 失败时返回 0/0，调用方会退回默认比例。
- */
-function probeImageSize(url: string): Promise<{ width: number, height: number }> {
-  return new Promise(resolve => {
-    const img = new Image()
-    const done = (w: number, h: number): void => {
-      img.onload = null
-      img.onerror = null
-      resolve({ width: w, height: h })
-    }
-    img.onload = () => done(img.naturalWidth, img.naturalHeight)
-    img.onerror = () => done(0, 0)
-    // 加超时兜底，避免个别图片挂住整个初始化
-    window.setTimeout(() => done(0, 0), 8000)
-    img.src = url
-  })
-}

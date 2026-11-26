@@ -138,21 +138,33 @@ export async function fetchImageBlob(url: string, tag: 'blob' | 'superres' = 'bl
         report(true, blob.size, 'fetch')
         return blob
     }
+    /*
+     * 先用 fetch，失败再退回 GM。
+     *
+     * 之前的顺序是 GM 优先——而 GM_xmlhttpRequest **不走浏览器 HTTP 缓存**，
+     * 于是页面上已经加载过的图，超分/兜底再取一次就是实打实又下了一遍，
+     * 大图上每次多几 MB 流量。
+     * fetch 走的是页面自己的网络栈，同源图或带 CORS 头的源会直接命中缓存，零流量；
+     * 没有 CORS 头的源会在这里抛错，再交给 GM 绕过限制，行为与原来一致。
+     */
+    let fetchError: unknown = null
+    try {
+        const response = await fetch(url)
+        if (!response.ok) {
+            throw new Error(`HTTP_${response.status}`)
+        }
+        const blob = toImageBlob(new Uint8Array(await response.arrayBuffer()))
+        report(true, blob.size, 'fetch')
+        return blob
+    } catch (error) {
+        fetchError = error
+    }
     try {
         const blob = await fetchImageByGM(url)
         report(true, blob.size, 'GM')
         return blob
     } catch (gmError) {
-        // 同源图或已允许 CORS 的源直接走 fetch
-        try {
-            const response = await fetch(url)
-            if (!response.ok) {
-                throw new Error(`HTTP_${response.status}`)
-            }
-            const blob = toImageBlob(new Uint8Array(await response.arrayBuffer()))
-            report(true, blob.size, 'fetch')
-            return blob
-        } catch (fetchError) {
+        {
             // 两边都失败时，GM 的报错更有信息量（那是我们自己发起的请求，能拿到状态码）
             const gmMessage = gmError instanceof Error ? gmError.message : ''
             const thrown = (gmMessage && gmMessage !== 'GM_XHR_NOT_AVAILABLE' ? gmError : fetchError) as Error
