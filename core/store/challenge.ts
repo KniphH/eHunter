@@ -36,6 +36,20 @@ export const challengeState = reactive({
  * URL 参数在同源跳转中会保留。
  */
 /**
+ * 只有这些站点才可能真的遇到 Cloudflare 人机验证。
+ *
+ * 之前任何站点的 403 都会走到这里，而探测逻辑把「非 200」一律当作挑战页，
+ * 于是 pixiv 这种自己用 403 做限流的站，网络一抖就弹出「需要人机验证」——
+ * 用户根本没有验证窗口可过，因为压根不是 Cloudflare。
+ */
+const CHALLENGE_HOSTS = ['nhentai.net', 'nhentai.xxx', 'nhentai.to']
+
+function isKnownChallengeHost(): boolean {
+    const host = location.hostname.toLowerCase()
+    return CHALLENGE_HOSTS.some(item => host === item || host.endsWith(`.${item}`))
+}
+
+/**
  * 「刚打开过验证窗口」的标记键。
  *
  * 不用 window.name（跨域导航后会被清空），也不用 URL 参数
@@ -324,6 +338,10 @@ function startProbing(url: string): void {
  * 确认后自动弹标签页，并把状态置为 active，让弹层显示"正在等待验证"。
  */
 export async function notifyCloudflareChallenge(url: string): Promise<boolean> {
+    // 不在已知会触发 CF 挑战的站点上，403 只是普通限流/网络错误，不该弹验证提示
+    if (!isKnownChallengeHost()) {
+        return false
+    }
     if (challengeState.active) {
         return false
     }

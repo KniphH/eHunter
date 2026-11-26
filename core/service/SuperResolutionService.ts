@@ -101,6 +101,16 @@ export function setSuperResCacheLimit(value: number): void {
 
 /** 失败后多久允许重试。网络抖动、临时超时不该让这一页永久失去超分 */
 /**
+ * 允许超分的最大输入像素数。
+ *
+ * x2 之后纹理是 float RGBA（每像素 16 字节），800 万像素输入 → 3200 万像素输出
+ * → 单张纹理就 512MB。再叠中间纹理直接爆显存：
+ * 表现就是「只画出一部分 + 整机卡死」，而且失败的页会被无限重试放大成灾难。
+ * 普通漫画页 1500×2200 ≈ 330 万像素，这个上限不影响正常使用。
+ */
+const MAX_SUPERRES_INPUT_PIXELS = 8_000_000
+
+/**
  * 失败后多久重试：**立刻**。
  *
  * 用 0 而不是同步递归，是为了让出一次事件循环——
@@ -445,6 +455,15 @@ class SuperResRenderer {
         } else {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null)
         }
+        /*
+         * 显存不足或尺寸超限时 texImage2D 不会抛异常，只把错误码塞进 GL 状态。
+         * 不查就继续跑，后面所有 pass 都在一张不完整的纹理上算，
+         * 结果依然是「只画出一部分」，而且耗时极长。
+         */
+        const glError = gl.getError()
+        if (glError !== gl.NO_ERROR) {
+            throw new Error(`texture_alloc_failed_${width}x${height}_code_${glError}`)
+        }
         return texture
     }
 
@@ -653,6 +672,15 @@ class SuperResRenderer {
         if (target.width !== final.w || target.height !== final.h) {
             target.width = final.w
             target.height = final.h
+            /*
+             * 赋值后必须核对。
+             * 画布超出浏览器上限（单边或总面积）时，width/height 会被**静默夹小**，
+             * 后续 drawArrays 只填一部分——用户看到的就是「超分图被裁掉一块」，
+             * 而且没有任何报错，只有一张残缺的图被当成功结果缓存下来。
+             */
+            if (target.width !== final.w || target.height !== final.h) {
+                throw new Error(`canvas_too_small_${final.w}x${final.h}_got_${target.width}x${target.height}`)
+            }
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.viewport(0, 0, final.w, final.h)
@@ -774,7 +802,7 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
  * 这两类立刻无限重试只会把 CPU 打满，画面不会变好。
  */
 function isPermanentRenderError(message: string): boolean {
-    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected/i.test(message)
+    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected|image_too_large|exceeds max texture size|superres_input_too_large|canvas_too_small|texture_alloc_failed|empty_output/i.test(message)
 }
 
 /** 只取启用的文件（执行链用） */
@@ -1413,6 +1441,24 @@ class SuperResolutionService {
             afterFetch = performance.now()
         }
         const afterDecode = performance.now()
+
+        /*
+         * 超分前先按像素数把关。
+         * 只检查「输入是否超过纹理上限」是不够的——x2 之后的中间纹理才是真正的爆点，
+         * 爆掉时 WebGL 不会报错，只会画出一部分，然后一路把显存拖垮。
+         * 这里主动跳过，并把它算作永久失败（不重试）。
+         */
+        const inputPixels = bitmap.width * bitmap.height
+        if (inputPixels > MAX_SUPERRES_INPUT_PIXELS) {
+            bitmap.close()
+            throw new Error(`superres_input_too_large_${bitmap.width}x${bitmap.height}`)
+        }
+        if (bitmap.width * 2 > slot.renderer.maxSize || bitmap.height * 2 > slot.renderer.maxSize) {
+            const w = bitmap.width
+            const h = bitmap.height
+            bitmap.close()
+            throw new Error(`superres_input_too_large_${w}x${h}`)
+        }
         try {
             if (bitmap.width > slot.renderer.maxSize || bitmap.height > slot.renderer.maxSize) {
                 throw new Error(`image_too_large_${bitmap.width}x${bitmap.height}`)
