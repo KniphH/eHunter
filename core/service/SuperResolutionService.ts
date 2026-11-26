@@ -103,12 +103,14 @@ export function setSuperResCacheLimit(value: number): void {
 /**
  * 允许超分的最大输入像素数。
  *
- * x2 之后纹理是 float RGBA（每像素 16 字节），800 万像素输入 → 3200 万像素输出
- * → 单张纹理就 512MB。再叠中间纹理直接爆显存：
- * 表现就是「只画出一部分 + 整机卡死」，而且失败的页会被无限重试放大成灾难。
- * 普通漫画页 1500×2200 ≈ 330 万像素，这个上限不影响正常使用。
+ * x2 之后纹理是 RGBA16F（每像素 16 字节）：
+ *   330 万输入 → 1300 万输出 → 单张纹理 210MB，两片 ping-pong 约 420MB（普通页，实测可用）
+ *   800 万输入 → 3200 万输出 → 单张 512MB，两片超 1GB（直接卡死浏览器）
+ *
+ * 用户实测：分辨率一旦过高，不是「慢」，是整机卡死。
+ * 所以门槛必须保守——宁可不超分，也不能把浏览器顶死。
  */
-const MAX_SUPERRES_INPUT_PIXELS = 8_000_000
+const MAX_SUPERRES_INPUT_PIXELS = 5_000_000
 
 /**
  * 失败后多久重试：**立刻**。
@@ -1426,6 +1428,17 @@ class SuperResolutionService {
         let bitmap: ImageBitmap | null = null
         let blob: Blob | null = null
         let afterFetch = 0
+        /*
+         * 解码前就用 <img> 自带的尺寸预判。
+         * 之前只在 decode 之后才检查，而大图光「解码 + 上传」这一步就足以把内存顶爆，
+         * 根本轮不到后面的检查。
+         */
+        if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
+            const natural = imageElement.naturalWidth * imageElement.naturalHeight
+            if (natural > MAX_SUPERRES_INPUT_PIXELS) {
+                throw new Error(`superres_input_too_large_${imageElement.naturalWidth}x${imageElement.naturalHeight}`)
+            }
+        }
         if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
             try {
                 bitmap = await createImageBitmap(imageElement)
