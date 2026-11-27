@@ -27,9 +27,21 @@ function getEhunterElem() : HTMLDivElement|null {
 let resizeTimeoutId: number = 0
 function updateViewportSize() {
     let elem = getEhunterElem()
-    if (elem && elem.offsetWidth > 0 && elem.offsetHeight > 0) {
+    /*
+     * 高度一律取 window.innerHeight，不取容器 offsetHeight。
+     *
+     * 容器是全屏 fixed 浮层，理论上两者相等；但只要容器里有元素参与布局
+     * （顶栏一出现就会占掉一条高度），offsetHeight 就会缩水，
+     * 图片「按视口高度的一半居中」的基准跟着变——
+     * 表现就是顶栏一开，图片上移、下方凭空多出一条空白。
+     *
+     * 实测把顶栏改成 fixed、内联 !important 都没能让这个值稳定下来，
+     * 与其继续纠缠谁在占位，不如让高度彻底脱离容器：innerHeight 只反映真实视口。
+     * 宽度仍用容器，因为浮层可能不是全宽（侧边目录栏）。
+     */
+    storeAction.setViewportHeight(window.innerHeight)
+    if (elem && elem.offsetWidth > 0) {
         storeAction.setViewportWidth(elem.offsetWidth)
-        storeAction.setViewportHeight(elem.offsetHeight)
     } else {
         // The eHunter reader is always a fullscreen fixed overlay, so the real viewport size
         // is exactly window.innerWidth/innerHeight. Fall back to this when the container
@@ -37,7 +49,6 @@ function updateViewportSize() {
         // layout has settled) — otherwise viewportWidth/Height stay at 0 and the reader
         // renders blank until a resize/zoom event forces a re-measure.
         storeAction.setViewportWidth(window.innerWidth)
-        storeAction.setViewportHeight(window.innerHeight)
     }
 }
 
