@@ -113,6 +113,16 @@ export function setSuperResCacheLimit(value: number): void {
 const MAX_SUPERRES_INPUT_PIXELS = 5_000_000
 
 /**
+ * 超分取图的超时。
+ *
+ * 实测同一张 1280×960 的图，取址有时 0.8 秒、有时 21 秒——站点限流或请求被挂住。
+ * 超分本身只有 25ms 图形 + 238ms 编码，为了取图卡二十秒毫无意义：
+ * 这页先按原图显示，标记为永久失败（不重试，避免又卡一次）。
+ */
+const SUPERRES_FETCH_TIMEOUT_MS = 10_000
+
+
+/**
  * 失败后多久重试：**立刻**。
  *
  * 用 0 而不是同步递归，是为了让出一次事件循环——
@@ -804,7 +814,7 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
  * 这两类立刻无限重试只会把 CPU 打满，画面不会变好。
  */
 function isPermanentRenderError(message: string): boolean {
-    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected|image_too_large|exceeds max texture size|superres_input_too_large|canvas_too_small|texture_alloc_failed|empty_output/i.test(message)
+    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected|image_too_large|exceeds max texture size|superres_input_too_large|canvas_too_small|texture_alloc_failed|empty_output|superres_fetch_timeout/i.test(message)
 }
 
 /** 只取启用的文件（执行链用） */
@@ -1447,7 +1457,12 @@ class SuperResolutionService {
             }
         }
         if (!bitmap) {
-            blob = await fetchImageBlob(sourceUrl, 'superres')
+            blob = await Promise.race([
+                fetchImageBlob(sourceUrl, 'superres'),
+                new Promise<never>((_, reject) => {
+                    setTimeout(() => reject(new Error('superres_fetch_timeout')), SUPERRES_FETCH_TIMEOUT_MS)
+                }),
+            ])
             afterFetch = performance.now()
             bitmap = await createImageBitmap(blob)
         } else {
