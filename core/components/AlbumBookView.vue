@@ -111,10 +111,15 @@ function calcScreenPageSize(screen: number[]): BookPageDisplayParam[] {
             ? storeAction.getImgPageHeightOfWidth(pageIndex)
             : getBookCoverPlaceholderHeightOfWidth()
         let height = width * heightOfWidth
-        let top = computedAlbumViewportHeight.value / 2 - height / 2
-        if (store.showTopBar) {
-            top += store.topBarHeight
-        }
+        /*
+         * 图片始终在视口里垂直居中。
+         *
+         * 这里原本有一段 `if (store.showTopBar) top += store.topBarHeight`，
+         * 即「顶栏出现时把图片往下挪，给它腾位置」——
+         * 这才是「顶栏一显示图片就被顶下去」的真正原因，跟 CSS 定位无关。
+         * 顶栏现在是浮层（外层绝对定位），覆盖在图片之上，不需要也不应该位移图片。
+         */
+        const top = computedAlbumViewportHeight.value / 2 - height / 2
             result.push({
                 pageIndex: pageIndex,
             height: height,
