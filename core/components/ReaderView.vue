@@ -5,6 +5,7 @@
         'pointer-mode': pointerMode,
         'hover-top': hoverTop,
         'hover-bottom': hoverBottom,
+        'hover-thumb': hoverThumb,
     }">
     <DockWorkspace
         ref="dockWorkspaceRef"
@@ -19,7 +20,6 @@
         </template>
         <template #main>
             <div class="main-content">
-                <TopBar class="top-bar" @closeEHunter="closeReader"/>
                 <transition name="slow-horizontal-fade">
                     <AlbumScrollView class="content scroll-mode" v-if="store.readingMode === 0" />
                 </transition>
@@ -29,6 +29,9 @@
             </div>
         </template>
     </DockWorkspace>
+    <!-- 顶栏放在 DockWorkspace 外面：它原先在 .main-content 里，
+         即便设了 absolute 也会受那个容器的 flex 布局影响，实测仍会把图片顶下去 -->
+    <TopBar class="top-bar" @closeEHunter="closeReader"/>
     <div class="status-pannel">
         <button
             class="full-screen"
@@ -169,6 +172,7 @@ function onThumbExpandSelectPage(pageNumber: number) {
 const pointerMode = ref(false)
 const hoverTop = ref(false)
 const hoverBottom = ref(false)
+const hoverThumb = ref(false)
 
 function handlePointerMove(e: PointerEvent): void {
     if (!pointerMode.value) {
@@ -179,11 +183,14 @@ function handlePointerMove(e: PointerEvent): void {
     // 顶栏热区：整个顶边；右下热区：全屏按钮 + 页码那块
     hoverTop.value = e.clientY <= 96
     hoverBottom.value = e.clientX >= w - 220 && e.clientY >= h - 130
+    // 页目录（缩略图栏）在底部，热区给宽一点：整条底边都算
+    hoverThumb.value = e.clientY >= h - 150
 }
 
 function handlePointerLeave(): void {
     hoverTop.value = false
     hoverBottom.value = false
+    hoverThumb.value = false
 }
 
 onMounted(() => {
@@ -214,6 +221,8 @@ div {
 }
 
 .reader-view {
+    position: relative;
+
     /*
      * 沉浸模式：鼠标不在热区时收起顶栏和右下状态条。
      * 只在 pointer-mode（有精确指针的桌面环境）下生效，触屏保持常显。
@@ -221,6 +230,7 @@ div {
      */
     &.pointer-mode {
         :deep(.top-bar),
+        :deep(.thumb-panel.bottom),
         > .status-pannel {
             transition: opacity 0.22s ease, transform 0.22s ease;
         }
@@ -228,6 +238,13 @@ div {
         &:not(.hover-top) :deep(.top-bar) {
             opacity: 0 !important;
             transform: translateY(-10px);
+            pointer-events: none !important;
+        }
+
+        /* 页目录（底部缩略图栏）同样只在靠近底边时浮出 */
+        &:not(.hover-thumb) :deep(.thumb-panel.bottom) {
+            opacity: 0 !important;
+            transform: translateY(100%);
             pointer-events: none !important;
         }
 
@@ -243,25 +260,6 @@ div {
      * 只在 pointer-mode（有精确指针的桌面环境）下生效，触屏保持常显。
      * 隐藏时同时关掉 pointer-events，避免看不见的按钮挡住翻页点击。
      */
-    &.pointer-mode {
-        :deep(.top-bar),
-        > .status-pannel {
-            transition: opacity 0.22s ease, transform 0.22s ease;
-        }
-
-        &:not(.hover-top) :deep(.top-bar) {
-            opacity: 0 !important;
-            transform: translateY(-10px);
-            pointer-events: none !important;
-        }
-
-        &:not(.hover-bottom) > .status-pannel {
-            opacity: 0 !important;
-            transform: translateY(10px);
-            pointer-events: none !important;
-        }
-    }
-
     position: relative;
     flex-direction: row;
     align-items: center;
@@ -276,20 +274,7 @@ div {
         display: flex;
         flex-direction: column;
 
-        > .top-bar {
-            /*
-             * 必须 absolute，而且需要 !important。
-             * TopBar 组件自己的根样式写了 position: relative，会把这条盖掉——
-             * 结果是顶栏在正常流里占掉一条高度，图片被顶下去一段；
-             * 收到隐藏后那一块空白仍然留着，看起来像「图片没有往上顶」。
-             * 改成 absolute 后顶栏浮在图片之上，收起时只淡出、不影响布局。
-             */
-            position: absolute !important;
-            z-index: 10000;
-            left: 0;
-            top: 0;
-            width: 100%;
-        }
+
 
         > .content {
             position: absolute;
@@ -299,6 +284,18 @@ div {
             height: 100%;
         }
     }
+    /*
+     * 顶栏现在是 .reader-view 的直接子级，绝对定位，浮在内容之上。
+     * TopBar 自己根样式是 position: relative，在绝对定位父级内部不影响外部布局。
+     */
+    > .top-bar {
+        position: absolute !important;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 10001;
+    }
+
     > .panel {
         display: flex;
         align-items: center;

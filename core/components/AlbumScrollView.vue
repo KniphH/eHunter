@@ -73,10 +73,17 @@ watch(scrollPosition, position => {
             index = renderedPageIndexList.value[0] ?? 0
         }
     } else if (scrollPosition.value !== 0) {
-        // avoiding that in the top, page 1 and page 2 show at the same time, the index is 1
+        /*
+         * 判据是「页的顶部越过视口中线」。
+         *
+         * 原来比的是 scrollTop + innerHeight（视口底部），等于「只要下一页露出一点点
+         * 就算当前页」——于是永远比实际阅读位置大一页：你在第 3 页，它显示第 4 页。
+         * 用中线之后，只有当一页真的占据视口主要区域时才算当前页。
+         */
         const _cons = cons.concat().reverse()
+        const anchor = scrollPosition.value + window.innerHeight / 2
         let result = cons.indexOf(
-            _cons.find(item => item.offsetTop <= scrollPosition.value + window.innerHeight)
+            _cons.find(item => item.offsetTop <= anchor)
         );
         const volIndex = result === -1 ? pageContainers.value.length - 1 : result
         // 同时渲染多卷，局部下标要映射回真实页号
