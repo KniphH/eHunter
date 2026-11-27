@@ -219,6 +219,26 @@ onMounted(() => {
      * 结果按钮永远不隐藏，看起来像「这个功能没做」。
      */
     pointerMode.value = !window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    /*
+     * 直接给顶栏容器写 !important。
+     *
+     * CSS 和 :style 都没能让它脱离文档流（容器 offsetHeight 仍随顶栏变化，
+     * 图片居中位置跟着上移——表现就是「底部像多了个顶栏把图片往上推」）。
+     * style.setProperty 的第三个参数 'important' 是浏览器里优先级最高的写法，
+     * 任何样式表都压不过它。
+     */
+    const layer = document.querySelector('.reader-view > .top-bar-layer') as HTMLElement | null
+    if (layer) {
+        layer.style.setProperty('position', 'fixed', 'important')
+        layer.style.setProperty('top', '0', 'important')
+        layer.style.setProperty('left', '0', 'important')
+        layer.style.setProperty('right', '0', 'important')
+        layer.style.setProperty('width', '100%', 'important')
+        layer.style.setProperty('z-index', '10001', 'important')
+        layer.style.setProperty('pointer-events', 'none', 'important')
+        layer.style.setProperty('margin', '0', 'important')
+        layer.style.setProperty('height', 'auto', 'important')
+    }
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     document.addEventListener('pointerleave', handlePointerLeave)
     syncFullscreenState()
