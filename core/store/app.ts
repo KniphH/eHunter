@@ -742,9 +742,19 @@ export const computedAlbumViewportHeight = computed(() => {
     const showThumb = ((store.readingMode == 0 && store.showThumbView) || (store.readingMode == 1 && store.showBookThumbView))
         && store.thumbInfos.length > 0
     let height = store.viewportHeight
-    if (store.showTopBar) {
-        height -= store.topBarHeight
-    }
+    /*
+     * 不能因为顶栏而扣高度。
+     *
+     * 顶栏是浮层（absolute，见 ReaderView），覆盖在图片之上、不占文档流，
+     * 可用区域本来就是整个视口。这里再减一次 topBarHeight，
+     * 等于把它当成占位元素处理：
+     *   可用高度少 45px → 图片按 height/2 居中，整体上移 22px 左右
+     *   宽度按 height/ratio 缩放 → 图片同时变小
+     *   下方因此空出一条带子，看起来像「底部冒出个顶栏把图片顶上去」。
+     *
+     * 这是第二处「给顶栏腾位置」的写法，第一处是 AlbumBookView 里的
+     * `top += store.topBarHeight`（已删除）。
+     */
     if (showThumb && store.thumbDockSlot === 'bottom') {
         height -= store.thumbViewHeight
     }
