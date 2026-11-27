@@ -386,6 +386,12 @@ const superRows = computed(() => {
             + (attempts ? ` (${Math.round((counters.hits / attempts) * 100)}%)` : '')
             + (counters.queued ? ` · ${t('statsQueued')} ${counters.queued}` : ''),
     })
+    if (store.lastEvictedPage > 0) {
+        rows.push({ key: '最近淘汰', value: `第 ${store.lastEvictedPage} 页` })
+    }
+    if (store.lastEvictedPage > 0) {
+        rows.push({ key: '最近淘汰', value: `第 ${store.lastEvictedPage} 页` })
+    }
     const withBlob = store.imgPageInfos.filter(info => info.localBlobSrc).length
     if (store.superResEnabled) {
         rows.push({

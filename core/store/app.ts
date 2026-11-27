@@ -627,6 +627,8 @@ export const store = reactive({
     superResEnabled: false,
     /** 超分结果缓存池大小（页数）。预加载只有几页时没必要压太多 */
     superResCacheLimit: 24,
+    /** 最近被淘汰出超分缓存的是第几页（1 起），状态浮层显示，方便核对淘汰策略 */
+    lastEvictedPage: 0,
     /** 算法文件变化计数：勾选/排序/增删后自增，用来刷新依赖它的摘要 */
     superResShaderVersion: 0,
     /** 算法文件变化计数：勾选/排序/增删后自增，用来刷新依赖它的摘要 */
@@ -922,6 +924,7 @@ superResolutionService.setEvictListener((url) => {
     for (const info of store.imgPageInfos) {
         if (info.displaySrc === url) {
             info.displaySrc = ''
+            store.lastEvictedPage = info.index + 1
         }
     }
 })
