@@ -1,5 +1,11 @@
 <template>
-<div class="reader-view">
+<div
+    class="reader-view"
+    :class="{
+        'pointer-mode': pointerMode,
+        'hover-top': hoverTop,
+        'hover-bottom': hoverBottom,
+    }">
     <DockWorkspace
         ref="dockWorkspaceRef"
         :thumb-slot="store.thumbDockSlot"
@@ -154,7 +160,36 @@ function onThumbExpandSelectPage(pageNumber: number) {
     storeAction.setCurViewIndex(pageNumber - 1, 'thumb-expand')
 }
 
+/*
+ * 沉浸模式：鼠标靠近右上角 / 右下角才浮出对应按钮，移开就收起。
+ *
+ * 只在「有精确指针」的设备上启用（桌面鼠标）。触屏没有 hover 概念，
+ * 强制开启会导致按钮永远看不见，所以 pointerMode 为 false 时保持常显、行为不变。
+ */
+const pointerMode = ref(false)
+const hoverTop = ref(false)
+const hoverBottom = ref(false)
+
+function handlePointerMove(e: PointerEvent): void {
+    if (!pointerMode.value) {
+        return
+    }
+    const w = window.innerWidth
+    const h = window.innerHeight
+    // 顶栏热区：整个顶边；右下热区：全屏按钮 + 页码那块
+    hoverTop.value = e.clientY <= 96
+    hoverBottom.value = e.clientX >= w - 220 && e.clientY >= h - 130
+}
+
+function handlePointerLeave(): void {
+    hoverTop.value = false
+    hoverBottom.value = false
+}
+
 onMounted(() => {
+    pointerMode.value = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
+    document.addEventListener('pointerleave', handlePointerLeave)
     syncFullscreenState()
     document.addEventListener('fullscreenchange', syncFullscreenState)
     document.addEventListener('webkitfullscreenchange', syncFullscreenState as EventListener)
@@ -162,6 +197,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    window.removeEventListener('pointermove', handlePointerMove)
+    document.removeEventListener('pointerleave', handlePointerLeave)
     document.removeEventListener('fullscreenchange', syncFullscreenState)
     document.removeEventListener('webkitfullscreenchange', syncFullscreenState as EventListener)
     document.removeEventListener('mozfullscreenchange', syncFullscreenState as EventListener)
@@ -177,6 +214,54 @@ div {
 }
 
 .reader-view {
+    /*
+     * 沉浸模式：鼠标不在热区时收起顶栏和右下状态条。
+     * 只在 pointer-mode（有精确指针的桌面环境）下生效，触屏保持常显。
+     * 隐藏时同时关掉 pointer-events，避免看不见的按钮挡住翻页点击。
+     */
+    &.pointer-mode {
+        :deep(.top-bar),
+        > .status-pannel {
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        &:not(.hover-top) :deep(.top-bar) {
+            opacity: 0 !important;
+            transform: translateY(-10px);
+            pointer-events: none !important;
+        }
+
+        &:not(.hover-bottom) > .status-pannel {
+            opacity: 0 !important;
+            transform: translateY(10px);
+            pointer-events: none !important;
+        }
+    }
+
+    /*
+     * 沉浸模式：鼠标不在热区时收起顶栏和右下状态条。
+     * 只在 pointer-mode（有精确指针的桌面环境）下生效，触屏保持常显。
+     * 隐藏时同时关掉 pointer-events，避免看不见的按钮挡住翻页点击。
+     */
+    &.pointer-mode {
+        :deep(.top-bar),
+        > .status-pannel {
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        &:not(.hover-top) :deep(.top-bar) {
+            opacity: 0 !important;
+            transform: translateY(-10px);
+            pointer-events: none !important;
+        }
+
+        &:not(.hover-bottom) > .status-pannel {
+            opacity: 0 !important;
+            transform: translateY(10px);
+            pointer-events: none !important;
+        }
+    }
+
     position: relative;
     flex-direction: row;
     align-items: center;
