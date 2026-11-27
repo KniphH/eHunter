@@ -845,6 +845,38 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         }
     }
 
+    /*
+     * 中途打开超分：已经显示出来的页还没有本地副本，补一份。
+     *
+     * 这些页的图已经用 no-cors 方式加载过，缓存里那份 fetch 读不到，
+     * 只能真的再请求一次——代价是当前可见的几页各多下载一遍。
+     * 只对挂载中的页生效（v-if 控制的那些），翻过去的页等重新进入视口时自然补上。
+     */
+    watch(
+        () => store.superResEnabled,
+        (enabled) => {
+            if (enabled) {
+                void ensureLocalBlobSrc()
+            }
+        },
+    )
+
+    /*
+     * 中途打开超分：已经显示出来的页还没有本地副本，补一份。
+     *
+     * 这些页的图已经用 no-cors 方式加载过，缓存里那份 fetch 读不到，
+     * 只能真的再请求一次——代价是当前可见的几页各多下载一遍。
+     * 只对挂载中的页生效（v-if 控制的那些），翻过去的页等重新进入视口时自然补上。
+     */
+    watch(
+        () => store.superResEnabled,
+        (enabled) => {
+            if (enabled) {
+                void ensureLocalBlobSrc()
+            }
+        },
+    )
+
     function loaded(e?: Event) {
         if (e && isStaleEvent(e)) {
             return
