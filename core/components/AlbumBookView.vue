@@ -21,10 +21,10 @@
         </Transition>
         <transition name="center-horizontal-fade">
             <Pagination
-                v-if="store.showBookPagination && spreadPageSum > 1"
+                v-if="store.showBookPagination && displayPageSum > 1"
                 class="bottom-pagination"
-                :cur-index="curSpreadIndex"
-                :page-sum="spreadPageSum"
+                :cur-index="displayCurIndex"
+                :page-sum="displayPageSum"
                 @change="selectSpreadIndex" />
         </transition>
         <div class="action-panel">
@@ -174,8 +174,30 @@ const spreadPageSum = computed(() => {
     return bookSpreads.value.length
 })
 
+/*
+ * buildBookSpreadPageList 在「不启用奇偶切换」时会往最前面塞一个 -1 作为封面占位，
+ * 于是 spreads 变成 [[-1], [0], [1], ...]，第 1 页落在下标 1。
+ * 页码条如果直接用 curSpreadIndex，就会永远比实际页大一格——
+ * 用户看到的就是「在第 1 页，页目录高亮第 2 个」。
+ * 这里统一换算成用户视角的页码（不含封面），点击时再换算回去。
+ */
+const hasCoverPlaceholder = computed(() => !store.isChangeOddEven)
+
+const displayCurIndex = computed(() => {
+    return hasCoverPlaceholder.value
+        ? Math.max(0, curSpreadIndex.value - 1)
+        : curSpreadIndex.value
+})
+
+const displayPageSum = computed(() => {
+    return hasCoverPlaceholder.value
+        ? Math.max(1, spreadPageSum.value - 1)
+        : spreadPageSum.value
+})
+
 function selectSpreadIndex(spreadIndex: number) {
-    const targetSpread = bookSpreads.value[spreadIndex]
+    const realIndex = hasCoverPlaceholder.value ? spreadIndex + 1 : spreadIndex
+    const targetSpread = bookSpreads.value[realIndex]
     const targetPageIndex = pickBookSpreadAnchorPage(targetSpread, store.curViewIndex)
     storeAction.setCurViewIndex(targetPageIndex, 'book-pagination')
 }
