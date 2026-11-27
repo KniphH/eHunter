@@ -31,9 +31,17 @@
     </DockWorkspace>
     <!-- 顶栏放在 DockWorkspace 外面：它原先在 .main-content 里，
          即便设了 absolute 也会受那个容器的 flex 布局影响，实测仍会把图片顶下去 -->
-    <div class="top-bar-layer" :style="topBarLayerStyle">
-        <TopBar class="top-bar" @closeEHunter="closeReader"/>
-    </div>
+    <!--
+        用 Teleport 挂到 body。
+        祖先里只要有一个 transform / filter / will-change，
+        position: fixed 就会改成相对那个祖先定位，而不是视口——
+        顶栏于是「出现在底部」并占用空间。挂到 body 之后不受任何祖先影响。
+    -->
+    <Teleport to="body">
+        <div class="top-bar-layer" :style="topBarLayerStyle">
+            <TopBar class="top-bar" @closeEHunter="closeReader"/>
+        </div>
+    </Teleport>
     <div class="status-pannel">
         <button
             class="full-screen"
@@ -183,7 +191,7 @@ const topBarLayerStyle = {
     top: '0',
     left: '0',
     right: '0',
-    zIndex: 10001,
+    zIndex: 2147483000,
     pointerEvents: 'none',
 } as const
 
@@ -227,14 +235,14 @@ onMounted(() => {
      * style.setProperty 的第三个参数 'important' 是浏览器里优先级最高的写法，
      * 任何样式表都压不过它。
      */
-    const layer = document.querySelector('.reader-view > .top-bar-layer') as HTMLElement | null
+    const layer = document.querySelector('.top-bar-layer') as HTMLElement | null
     if (layer) {
         layer.style.setProperty('position', 'fixed', 'important')
         layer.style.setProperty('top', '0', 'important')
         layer.style.setProperty('left', '0', 'important')
         layer.style.setProperty('right', '0', 'important')
         layer.style.setProperty('width', '100%', 'important')
-        layer.style.setProperty('z-index', '10001', 'important')
+        layer.style.setProperty('z-index', '2147483000', 'important')
         layer.style.setProperty('pointer-events', 'none', 'important')
         layer.style.setProperty('margin', '0', 'important')
         layer.style.setProperty('height', 'auto', 'important')
