@@ -32,6 +32,8 @@
     <!-- 顶栏放在 DockWorkspace 外面：它原先在 .main-content 里，
          即便设了 absolute 也会受那个容器的 flex 布局影响，实测仍会把图片顶下去 -->
     <TopBar class="top-bar" @closeEHunter="closeReader"/>
+    <div v-if="topBarProbe" class="topbar-probe">{{ topBarProbe }}</div>
+    <div v-if="topBarProbe" class="topbar-probe">{{ topBarProbe }}</div>
     <div class="status-pannel">
         <button
             class="full-screen"
@@ -169,6 +171,25 @@ function onThumbExpandSelectPage(pageNumber: number) {
  * 只在「有精确指针」的设备上启用（桌面鼠标）。触屏没有 hover 概念，
  * 强制开启会导致按钮永远看不见，所以 pointerMode 为 false 时保持常显、行为不变。
  */
+const topBarProbe = ref('')
+
+/*
+ * 临时诊断：把顶栏和内容区的实际计算样式摊到屏幕上。
+ * 「顶栏顶掉图片」改了几轮都没解决，靠猜没用，直接读真实值。
+ */
+function sampleLayout(): void {
+    const bar = document.querySelector('.reader-view > .top-bar') as HTMLElement | null
+    const content = document.querySelector('.reader-view .content') as HTMLElement | null
+    if (!bar) {
+        topBarProbe.value = 'probe: top-bar 未挂载'
+        return
+    }
+    const cs = getComputedStyle(bar)
+    const contentTop = content ? Math.round(content.getBoundingClientRect().top) : -1
+    topBarProbe.value = `bar pos=${cs.position} h=${bar.offsetHeight} top=${cs.top}`
+        + ` rect=${Math.round(bar.getBoundingClientRect().top)} content=${contentTop}`
+}
+
 const pointerMode = ref(false)
 const hoverTop = ref(false)
 const hoverBottom = ref(false)
@@ -203,6 +224,10 @@ onMounted(() => {
     pointerMode.value = !window.matchMedia('(hover: none) and (pointer: coarse)').matches
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     document.addEventListener('pointerleave', handlePointerLeave)
+    setTimeout(sampleLayout, 1200)
+    setTimeout(sampleLayout, 3000)
+    setTimeout(sampleLayout, 1200)
+    setTimeout(sampleLayout, 3000)
     syncFullscreenState()
     document.addEventListener('fullscreenchange', syncFullscreenState)
     document.addEventListener('webkitfullscreenchange', syncFullscreenState as EventListener)
@@ -301,6 +326,32 @@ div {
      * 顶栏现在是 .reader-view 的直接子级，绝对定位，浮在内容之上。
      * TopBar 自己根样式是 position: relative，在绝对定位父级内部不影响外部布局。
      */
+    > .topbar-probe {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        z-index: 99999;
+        background: rgba(0, 0, 0, 0.75);
+        color: #7ef;
+        font: 11px/1.4 monospace;
+        padding: 3px 6px;
+        border-radius: 3px;
+        pointer-events: none;
+    }
+
+    > .topbar-probe {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        z-index: 99999;
+        background: rgba(0, 0, 0, 0.75);
+        color: #7ef;
+        font: 11px/1.4 monospace;
+        padding: 3px 6px;
+        border-radius: 3px;
+        pointer-events: none;
+    }
+
     > .top-bar {
         position: absolute !important;
         top: 0;
