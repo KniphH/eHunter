@@ -36,22 +36,28 @@ export function isInSuperResWindow(
  * 排队优先级，数值越小越先：
  * - 当前页 0
  * - 后面的第 k 页 = k × 10
- * - 前面第 1 页 = 100（比后面三页都靠后）
- * - 窗口外 = 10000（正常情况下入队前就已被过滤）
+ * - 前面的第 k 页 = 100 + k × 10（比后面都靠后，且越远越靠后）
+ * - 窗口外 = 10000 + 距离 × 10
+ *
+ * 关键在于**同一侧的远近必须能区分**。
+ * 原来「前面的页一律 100」「窗口外一律 10000」，同分之后淘汰只能按 Map 插入顺序挑，
+ * 于是翻到第 4 页时丢掉的是第 2 页而不是最远的第 1 页，
+ * 接着又要为第 2 页腾位置，再来一轮——就是用户看到的「左右互搏」。
  */
 export function superResPriority(
     pageIndex: number,
     center: number,
     lookahead: number = SUPER_RES_LOOKAHEAD,
 ): number {
-    if (!isInSuperResWindow(pageIndex, center, lookahead)) {
-        return 10000
-    }
     const delta = pageIndex - center
+    if (!isInSuperResWindow(pageIndex, center, lookahead)) {
+        // 窗口外：越远越该被淘汰
+        return 10000 + Math.abs(delta) * 10
+    }
     if (delta >= 0) {
         return delta * 10
     }
-    return 100
+    return 100 + -delta * 10
 }
 
 export interface RenderJob {
