@@ -31,7 +31,7 @@
     </DockWorkspace>
     <!-- 顶栏放在 DockWorkspace 外面：它原先在 .main-content 里，
          即便设了 absolute 也会受那个容器的 flex 布局影响，实测仍会把图片顶下去 -->
-    <div class="top-bar-layer">
+    <div class="top-bar-layer" :style="topBarLayerStyle">
         <TopBar class="top-bar" @closeEHunter="closeReader"/>
     </div>
     <div class="status-pannel">
@@ -171,6 +171,22 @@ function onThumbExpandSelectPage(pageNumber: number) {
  * 只在「有精确指针」的设备上启用（桌面鼠标）。触屏没有 hover 概念，
  * 强制开启会导致按钮永远看不见，所以 pointerMode 为 false 时保持常显、行为不变。
  */
+/*
+ * 用内联样式，不用 CSS 类。
+ *
+ * 嵌套的 `> .top-bar-layer` 规则没有出现在构建产物里（scoped + 嵌套选择器的问题），
+ * 试了几轮 CSS 都没能真正让顶栏脱离文档流——视口被它挤小，图片居中位置就跟着动
+ * （顶栏一开，图片往上蹿）。内联样式优先级最高，也不经过 CSS 编译，最可靠。
+ */
+const topBarLayerStyle = {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    right: '0',
+    zIndex: 10001,
+    pointerEvents: 'none',
+} as const
+
 const pointerMode = ref(false)
 const hoverTop = ref(false)
 const hoverBottom = ref(false)
@@ -311,9 +327,16 @@ div {
      * relative / sticky / static 都只能落在这层内部，不可能再占外部文档流。
      */
     > .top-bar-layer {
-        position: absolute !important;
+        /*
+         * fixed，不是 absolute。
+         * absolute 仍然挂在本容器里，视口高度会被它挤小，图片居中位置随之变化
+         * （表现：顶栏一出现，图片往上蹿）。fixed 相对视口定位，彻底脱离文档流，
+         * 不参与任何容器的尺寸计算，图片位置自然不动。
+         */
+        position: fixed !important;
         top: 0;
         left: 0;
+        right: 0;
         width: 100%;
         z-index: 10001;
         pointer-events: none;
