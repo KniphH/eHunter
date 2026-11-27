@@ -53,7 +53,7 @@
             ref="imgRef"
             class="album-item"
             v-if="active && imgPageInfo && (imgPageInfo.displaySrc || imgPageInfo.src)"
-            :src="imgPageInfo.displaySrc || imgPageInfo.src"
+            :src="imgPageInfo.displaySrc || imgPageInfo.localBlobSrc || imgPageInfo.src"
             :crossorigin="corsMode ? 'anonymous' : undefined"
             :key="imgReloadKey"
             @load="loaded($event)"

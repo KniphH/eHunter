@@ -811,11 +811,48 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         publishPageState()
     }
 
+    /**
+     * 取一份原图的本地 blob 副本，供显示和超分共用。
+     *
+     * 跨域图片在 <img> 里能显示，但 JS 读不到像素（canvas 被污染），
+     * 超分拿不到数据。这里把图取成 blob、让 <img> 用它显示：
+     * blob 是同源的，createImageBitmap 就能读，超分不需要再联网。
+     *
+     * 只在开启超分时才做，关闭超分时加载行为和以前完全一样。
+     */
+    async function ensureLocalBlobSrc(): Promise<void> {
+        if (!store.superResEnabled) {
+            return
+        }
+        const info = imgPageInfo.value
+        if (!info || info.localBlobSrc) {
+            return
+        }
+        const original = info.src
+        if (!original || original.startsWith('blob:') || original.startsWith('data:')) {
+            return
+        }
+        try {
+            const blobUrl = await fetchImageObjectUrl(original)
+            // 期间可能换页/换源/关掉超分，过期结果直接丢弃
+            if (imgPageInfo.value?.src !== original || !store.superResEnabled) {
+                URL.revokeObjectURL(blobUrl)
+                return
+            }
+            storeAction.setImgPageInfoLocalBlobSrc(index, blobUrl)
+        } catch (error) {
+            Logger.logText('SUPERRES', `local blob failed: ${(error as Error)?.message || error}`)
+        }
+    }
+
     function loaded(e?: Event) {
         if (e && isStaleEvent(e)) {
             return
         }
         syncHeightOfWidthFromImage()
+        // 开启超分时顺手取一份本地副本；换成 blob 后 <img> 会再触发一次 loaded，
+        // 那一次超分才真正读得到像素（第一次因为跨域会被跳过）
+        void ensureLocalBlobSrc()
         const hasWaiter = pendingSettle !== null
         if (!settlePending(true)) {
             // 这张不是这一页的图（比例对不上），不能算加载成功，交回会话继续换源

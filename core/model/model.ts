@@ -8,6 +8,14 @@ export interface ImgPageInfo {
      * 渲染时优先用 displaySrc，关掉超分只要清空它即可回退。
      */
     displaySrc?: string,
+    /**
+     * 原图的本地 blob 副本（超分开启时才生成）。
+     *
+     * 跨域图片在 <img> 里能显示，但 JS 读不到像素（canvas 被污染），
+     * 超分就拿不到数据。取一份 blob 出来，img 用它显示、超分也用它，
+     * 全程只下载一次。`src` 仍是原始地址，下载/预取/换源继续用它。
+     */
+    localBlobSrc?: string,
     heightOfWidth: number,
     thumbHeight?: number,
     thumbWidth?: number,

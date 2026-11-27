@@ -1231,6 +1231,11 @@ export const storeAction = {
             })
         })
     },
+    setImgPageInfoLocalBlobSrc: (index: number, val: string) => {
+        if (index >= 0 && index < store.imgPageInfos.length) {
+            store.imgPageInfos[index].localBlobSrc = val
+        }
+    },
     setImgPageInfoDisplaySrc: (index: number, val: string) => {
         if (index >= 0 && index < store.imgPageInfos.length) {
             store.imgPageInfos[index].displaySrc = val
