@@ -840,6 +840,30 @@ export const settingConf = {
  * 图片是在 img 的 load 事件里触发超分的，已经显示在屏幕上的页不会自己重来，
  * 所以这里主动补一次，否则用户开完开关会以为没生效。
  */
+/**
+ * 把「每页离当前页多远」推给超分服务，供缓存淘汰挑最远的。
+ *
+ * 放在 setCurViewIndex 里直接调用，而不是用 watch：
+ * 模块顶层的 watch 没有 effect scope，翻页时不一定触发，
+ * 结果淘汰用的还是入队时的旧优先级，翻到第 4 页却把第 2 页踢掉。
+ */
+function updateSuperResCachePriorities(center: number): void {
+    const entries: Array<{ src: string, priority: number }> = []
+    store.imgPageInfos.forEach((info, index) => {
+        if (info.src) {
+            entries.push({ src: info.src, priority: superResPriority(index, center, store.superResLookahead) })
+        }
+    })
+    superResolutionService.updateCachePriorities(entries)
+}
+
+/**
+ * 把「每页离当前页多远」推给超分服务，供缓存淘汰挑最远的。
+ *
+ * 放在 setCurViewIndex 里直接调用，而不是用 watch：
+ * 模块顶层的 watch 没有 effect scope，翻页时不一定触发，
+ * 结果淘汰用的还是入队时的旧优先级，翻到第 4 页却把第 2 页踢掉。
+ */
 function upgradeAllLoadedPages(): void {
     const center = store.curViewIndex
     store.imgPageInfos.forEach((info, index) => {
@@ -920,34 +944,6 @@ superResolutionService.setResultListener((sourceUrl, url) => {
         info.displaySrc = url
     }
 })
-
-// 翻页后重算缓存优先级，否则淘汰会挑错项（详见 updateCachePriorities 的注释）
-watch(
-    () => store.curViewIndex,
-    (center) => {
-        const entries: Array<{ src: string, priority: number }> = []
-        store.imgPageInfos.forEach((info, index) => {
-            if (info.src) {
-                entries.push({ src: info.src, priority: superResPriority(index, center, store.superResLookahead) })
-            }
-        })
-        superResolutionService.updateCachePriorities(entries)
-    },
-)
-
-// 翻页后重算缓存优先级，否则淘汰会挑错项（详见 updateCachePriorities 的注释）
-watch(
-    () => store.curViewIndex,
-    (center) => {
-        const entries: Array<{ src: string, priority: number }> = []
-        store.imgPageInfos.forEach((info, index) => {
-            if (info.src) {
-                entries.push({ src: info.src, priority: superResPriority(index, center, store.superResLookahead) })
-            }
-        })
-        superResolutionService.updateCachePriorities(entries)
-    },
-)
 
 // 把存储里读到的池大小同步给超分服务（服务不认识 store，避免循环依赖）
 setSuperResCacheLimit(store.superResCacheLimit)
@@ -1422,6 +1418,7 @@ export const storeAction = {
                 store.flipDirection = 1
             }
             store.curViewIndex = result
+            updateSuperResCachePriorities(result)
             if (targetUpdater) {
                 store.curViewIndexUpdater = targetUpdater
             }

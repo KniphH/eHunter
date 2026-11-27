@@ -19,7 +19,6 @@
  *  - `UNPACK_FLIP_Y_WEBGL` 对 ImageBitmap 在 Chromium 上不生效，必须自己翻。
  */
 import Logger from '../utils/logger'
-import { fetchImageBlob } from './ImageFetchService'
 import { reportRender } from './StatsService'
 import { DEFAULT_RENDER_PRIORITY, takeNextJob, type RenderJob } from './renderQueue'
 import { readScriptValue, writeScriptValue } from './scriptStorage'
@@ -112,14 +111,6 @@ export function setSuperResCacheLimit(value: number): void {
  */
 const MAX_SUPERRES_INPUT_PIXELS = 5_000_000
 
-/**
- * 超分取图的超时。
- *
- * 实测同一张 1280×960 的图，取址有时 0.8 秒、有时 21 秒——站点限流或请求被挂住。
- * 超分本身只有 25ms 图形 + 238ms 编码，为了取图卡二十秒毫无意义：
- * 这页先按原图显示，标记为永久失败（不重试，避免又卡一次）。
- */
-const SUPERRES_FETCH_TIMEOUT_MS = 10_000
 
 
 /**
@@ -1050,6 +1041,10 @@ class SuperResolutionService {
                     // 被排队窗口裁掉：不是失败，翻回附近时会重新入队
                     return sourceUrl
                 }
+                if (error instanceof Error && error.message === 'superres_local_only') {
+                    // 本地还没有可读的位图：不记失败、不重试，等这页真正加载完再说
+                    return sourceUrl
+                }
                 this.failed.set(sourceUrl, Date.now())
                 const reason = String(error && (error as Error).message || error)
                 Logger.logText('SUPERRES', `failed: ${sourceUrl} ${reason}`)
@@ -1474,12 +1469,11 @@ class SuperResolutionService {
          * 于是同一张图「显示下载一次、超分再下载一次」，大图上光这一项就是两三秒。
          * 页面上的 <img> 此刻已经解码在内存里，createImageBitmap 可以直接拿它的位图。
          *
-         * 限制：跨域且没给 CORS 头的图会污染 canvas，这时 createImageBitmap 会 reject，
-         * 落到下面的下载路径，行为与以前一致。
+         * 限制：跨域且没给 CORS 头的图会污染 canvas，这时 createImageBitmap 会 reject。
+         * 那就直接跳过这页（不联网），见下面的 superres_local_only。
          */
         let bitmap: ImageBitmap | null = null
         let blob: Blob | null = null
-        let afterFetch = 0
         /*
          * 解码前就用 <img> 自带的尺寸预判。
          * 之前只在 decode 之后才检查，而大图光「解码 + 上传」这一步就足以把内存顶爆，
@@ -1499,17 +1493,19 @@ class SuperResolutionService {
             }
         }
         if (!bitmap) {
-            blob = await Promise.race([
-                fetchImageBlob(sourceUrl, 'superres'),
-                new Promise<never>((_, reject) => {
-                    setTimeout(() => reject(new Error('superres_fetch_timeout')), SUPERRES_FETCH_TIMEOUT_MS)
-                }),
-            ])
-            afterFetch = performance.now()
-            bitmap = await createImageBitmap(blob)
-        } else {
-            afterFetch = performance.now()
+            /*
+             * 不联网。
+             *
+             * 超分是纯本地运算，图既然已经显示在页面上，就没有理由再下载一遍。
+             * 拿不到本地位图只有两种情形：
+             *   1. 这页还没加载完 —— 等它 loaded() 时会再触发一次超分，天然重试；
+             *   2. 跨域图片读不出像素 —— 那是网站没给 CORS 头，下载一遍也解决不了本质问题
+             *      （同一张图会同时存在「显示用的」和「超分用的」两份流量）。
+             * 两种情况都直接跳过，保持原图。
+             */
+            throw new Error('superres_local_only')
         }
+        const afterFetch = performance.now()
         const afterDecode = performance.now()
 
         /*
