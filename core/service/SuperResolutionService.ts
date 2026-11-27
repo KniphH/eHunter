@@ -1049,6 +1049,8 @@ class SuperResolutionService {
                 this.store(sourceUrl, result, priority)
                 // 成功一次就把历史失败清掉，避免浮层一直挂着一个早已解决的错误
                 this.lastFailure = ''
+                // 成功一次就把历史失败清掉，避免浮层一直挂着一个早已解决的错误
+                this.lastFailure = ''
                 this.retryAttempts.delete(sourceUrl)
                 this.clearRetry(sourceUrl)
                 Logger.logText('SUPERRES', `ok ${result.sourceWidth}x${result.sourceHeight} -> ${result.width}x${result.height}, ${Math.round(result.costMs)}ms, ${result.params} passes`)
