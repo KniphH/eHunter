@@ -31,7 +31,9 @@
     </DockWorkspace>
     <!-- 顶栏放在 DockWorkspace 外面：它原先在 .main-content 里，
          即便设了 absolute 也会受那个容器的 flex 布局影响，实测仍会把图片顶下去 -->
-    <TopBar class="top-bar" @closeEHunter="closeReader"/>
+    <div class="top-bar-layer">
+        <TopBar class="top-bar" @closeEHunter="closeReader"/>
+    </div>
     <div v-if="topBarProbe" class="topbar-probe">{{ topBarProbe }}</div>
     <div v-if="topBarProbe" class="topbar-probe">{{ topBarProbe }}</div>
     <div class="status-pannel">
@@ -178,16 +180,19 @@ const topBarProbe = ref('')
  * 「顶栏顶掉图片」改了几轮都没解决，靠猜没用，直接读真实值。
  */
 function sampleLayout(): void {
-    const bar = document.querySelector('.reader-view > .top-bar') as HTMLElement | null
+    const layer = document.querySelector('.reader-view > .top-bar-layer') as HTMLElement | null
+    const bar = document.querySelector('.reader-view .top-bar') as HTMLElement | null
     const content = document.querySelector('.reader-view .content') as HTMLElement | null
-    if (!bar) {
-        topBarProbe.value = 'probe: top-bar 未挂载'
+    if (!layer || !bar) {
+        topBarProbe.value = `probe: layer=${!!layer} bar=${!!bar}`
         return
     }
-    const cs = getComputedStyle(bar)
+    const lcs = getComputedStyle(layer)
+    const bcs = getComputedStyle(bar)
     const contentTop = content ? Math.round(content.getBoundingClientRect().top) : -1
-    topBarProbe.value = `bar pos=${cs.position} h=${bar.offsetHeight} top=${cs.top}`
-        + ` rect=${Math.round(bar.getBoundingClientRect().top)} content=${contentTop}`
+    topBarProbe.value = `layer ${lcs.position} h=${layer.offsetHeight}`
+        + ` | bar ${bcs.position} h=${bar.offsetHeight}`
+        + ` | content=${contentTop}`
 }
 
 const pointerMode = ref(false)
@@ -267,7 +272,7 @@ div {
             transition: opacity 0.22s ease, transform 0.22s ease;
         }
 
-        &:not(.hover-top) :deep(.top-bar) {
+        &:not(.hover-top) > .top-bar-layer {
             opacity: 0 !important;
             transform: translateY(-10px);
             pointer-events: none !important;
@@ -352,12 +357,25 @@ div {
         pointer-events: none;
     }
 
-    > .top-bar {
+    /*
+     * 顶栏外面强制套一层绝对定位。
+     *
+     * 直接给 .top-bar 写 absolute 反复失效（成因没查透：可能是组件内样式、
+     * 也可能是别处 !important 覆盖）。这里让**外层**绝对定位，内层无论
+     * relative / sticky / static 都只能落在这层内部，不可能再占外部文档流。
+     */
+    > .top-bar-layer {
         position: absolute !important;
         top: 0;
         left: 0;
         width: 100%;
         z-index: 10001;
+        pointer-events: none;
+
+        /* 层本身不接收事件，但里面的按钮要能点 */
+        > :deep(.top-bar) {
+            pointer-events: auto;
+        }
     }
 
     > .panel {
