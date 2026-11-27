@@ -124,7 +124,13 @@ export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
     __EHUNTER_VERSION__: JSON.stringify(pkg.version),
-    __BUILD_STAMP__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' '))
+    // 本地时间 MM-DD HH:mm，用来一眼确认装的是哪次构建
+    // 显式用东八区：构建机的 node 时区不一定和浏览器一致
+    __BUILD_STAMP__: JSON.stringify(new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date()).replace('/', '-'))
   },
   appType: 'custom',
   server: {

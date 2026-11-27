@@ -24,6 +24,22 @@ export function buildImageHeaders(url: string): Record<string, string> | undefin
     if (/wnacg|qy0\.ru/i.test(url)) {
         return { Referer: `${location.origin}/` }
     }
+    /*
+     * nhentai 的图床（i.nhentai.net / 数字前缀.nhentai.net）同样校验来源。
+     * GM_xmlhttpRequest 不会自动带 Referer，缺了会被判成盗链直接 403，
+     * 于是「取本地副本」失败 —— 超分拿不到像素，只能一遍遍重试。
+     */
+    if (/nhentai/i.test(url)) {
+        return { Referer: `${location.origin}/` }
+    }
+    /*
+     * nhentai 的图床（i.nhentai.net / 数字前缀.nhentai.net）同样校验来源。
+     * GM_xmlhttpRequest 不会自动带 Referer，缺了会被判成盗链直接 403，
+     * 于是「取本地副本」失败 —— 超分拿不到像素，只能一遍遍重试。
+     */
+    if (/nhentai/i.test(url)) {
+        return { Referer: `${location.origin}/` }
+    }
     return undefined
 }
 

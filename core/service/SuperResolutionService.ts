@@ -454,7 +454,15 @@ class SuperResRenderer {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
         if (bitmap) {
             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+            try {
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+            } catch (error) {
+                /*
+                 * createImageBitmap(跨域 <img>) 不抛错，而是返回一个「被污染的位图」，
+                 * 直到上传纹理这一刻才炸出来。这说明本地副本没换上，重试无意义。
+                 */
+                throw new Error(`superres_tainted: ${(error as Error)?.message || error}`)
+            }
         } else {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null)
         }
@@ -805,7 +813,7 @@ function normalizeShaderFiles(raw: any): SuperResShaderFile[] {
  * 这两类立刻无限重试只会把 CPU 打满，画面不会变好。
  */
 function isPermanentRenderError(message: string): boolean {
-    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected|image_too_large|exceeds max texture size|superres_input_too_large|canvas_too_small|texture_alloc_failed|empty_output|superres_fetch_timeout/i.test(message)
+    return /shader compile failed|createShader failed|createProgram failed|program link failed|no_webgl2|no_color_buffer_float|no_shader_selected|image_too_large|exceeds max texture size|superres_input_too_large|canvas_too_small|texture_alloc_failed|empty_output|superres_fetch_timeout|superres_local_unreadable|superres_tainted/i.test(message)
 }
 
 /** 只取启用的文件（执行链用） */
@@ -919,6 +927,8 @@ class SuperResolutionService {
      * 现在只在一段时间内跳过，过后允许重试。
      */
     private failed = new Map<string, number>()
+    /** 最近一次超分失败的可读原因，状态浮层直接显示，省得用户去翻控制台 */
+    lastFailure = ''
     /** 待渲染任务，按 priority 出队（见 renderQueue.takeNextJob） */
     private queue: RenderJob[] = []
     /** url → 队列项，用于给已排队的页就地提权，避免重复入队 */
@@ -987,7 +997,12 @@ class SuperResolutionService {
      * `priority` 决定排队顺序，越小越先（见 renderQueue）。调用方用「离当前页的距离」传值：
      * 当前页 0、相邻页 10、再远 20…… 不传就排到队尾。
      */
-    async resolve(sourceUrl: string, priority: number = DEFAULT_RENDER_PRIORITY, imageElement?: HTMLImageElement | null): Promise<string> {
+    async resolve(
+        sourceUrl: string,
+        priority: number = DEFAULT_RENDER_PRIORITY,
+        imageElement?: HTMLImageElement | null,
+        localBlobUrl?: string | null,
+    ): Promise<string> {
         if (!sourceUrl) {
             return sourceUrl
         }
@@ -1023,14 +1038,17 @@ class SuperResolutionService {
         // 只在**真的要开算**时记一次未命中。放在前面会把「同一个失败地址被反复调用」
         // 也算进去，命中率被拉成 0%，看着像缓存没用上
         this.missCount++
-        const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId, imageElement))
+        const task = this.enqueue(sourceUrl, priority, (workerId) => this.render(sourceUrl, workerId, imageElement, localBlobUrl))
             .then((result) => {
                 if (!result) {
                     this.failed.set(sourceUrl, Date.now())
+                    this.lastFailure = 'render returned null'
                     this.scheduleRetry(sourceUrl, priority)
                     return sourceUrl
                 }
                 this.store(sourceUrl, result, priority)
+                // 成功一次就把历史失败清掉，避免浮层一直挂着一个早已解决的错误
+                this.lastFailure = ''
                 this.retryAttempts.delete(sourceUrl)
                 this.clearRetry(sourceUrl)
                 Logger.logText('SUPERRES', `ok ${result.sourceWidth}x${result.sourceHeight} -> ${result.width}x${result.height}, ${Math.round(result.costMs)}ms, ${result.params} passes`)
@@ -1047,6 +1065,7 @@ class SuperResolutionService {
                 }
                 this.failed.set(sourceUrl, Date.now())
                 const reason = String(error && (error as Error).message || error)
+                this.lastFailure = reason
                 Logger.logText('SUPERRES', `failed: ${sourceUrl} ${reason}`)
                 /*
                  * 着色器编译/链接失败、环境不支持这类问题是**配置或硬件**层面的，
@@ -1459,7 +1478,12 @@ class SuperResolutionService {
         }
     }
 
-    private async render(sourceUrl: string, workerId = 0, imageElement?: HTMLImageElement | null): Promise<SuperResResult | null> {
+    private async render(
+        sourceUrl: string,
+        workerId = 0,
+        imageElement?: HTMLImageElement | null,
+        localBlobUrl?: string | null,
+    ): Promise<SuperResResult | null> {
         const slot = this.ensureSlot(workerId)
         const startedAt = performance.now()
         /*
@@ -1475,6 +1499,23 @@ class SuperResolutionService {
         let bitmap: ImageBitmap | null = null
         let blob: Blob | null = null
         /*
+         * 最可靠的一条路：直接读本地 blob 副本。
+         *
+         * 页面上的 <img> 可能因为各种时序原因还挂着跨域原地址（实测
+         * 「本地副本 9/31 有值、但图片域仍是 i.xxx.net」），
+         * 从它取位图会得到被污染的 bitmap。
+         * blob: URL 是同源的，fetch 它不产生网络请求，也不会有污染问题。
+         */
+        if (!bitmap && localBlobUrl) {
+            try {
+                const localBlob = await (await fetch(localBlobUrl)).blob()
+                bitmap = await createImageBitmap(localBlob)
+                blob = localBlob
+            } catch (error) {
+                Logger.logText('SUPERRES', `read local blob failed: ${(error as Error)?.message || error}`)
+            }
+        }
+        /*
          * 解码前就用 <img> 自带的尺寸预判。
          * 之前只在 decode 之后才检查，而大图光「解码 + 上传」这一步就足以把内存顶爆，
          * 根本轮不到后面的检查。
@@ -1488,8 +1529,13 @@ class SuperResolutionService {
         if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
             try {
                 bitmap = await createImageBitmap(imageElement)
-            } catch {
-                // 跨域污染，退回下载
+            } catch (error) {
+                /*
+                 * 读不出像素 = 这张 <img> 还在跨域状态（本地副本没换上）。
+                 * 立刻重试一百次也是同样的结果，会堆成重试风暴
+                 * （统计里「未命中 118 (0%)」就是它），所以归为永久失败。
+                 */
+                throw new Error(`superres_local_unreadable: ${(error as Error)?.message || error}`)
             }
         }
         if (!bitmap) {
@@ -1503,6 +1549,30 @@ class SuperResolutionService {
              *      （同一张图会同时存在「显示用的」和「超分用的」两份流量）。
              * 两种情况都直接跳过，保持原图。
              */
+            /*
+             * 把原因打出来，否则「不超分」是个黑盒：
+             * 到底是没传元素、图没加载完，还是读不出像素，完全看不出来。
+             */
+            Logger.logText(
+                'SUPERRES',
+                `skip local_only: ${sourceUrl}`
+                + ` img=${imageElement ? 'yes' : 'no'}`
+                + ` complete=${imageElement ? imageElement.complete : '-'}`
+                + ` natural=${imageElement ? `${imageElement.naturalWidth}x${imageElement.naturalHeight}` : '-'}`
+                + ` src=${imageElement ? (imageElement.currentSrc || '').slice(0, 40) : '-'}`,
+            )
+            /*
+             * 把原因打出来，否则「不超分」是个黑盒：
+             * 到底是没传元素、图没加载完，还是读不出像素，完全看不出来。
+             */
+            Logger.logText(
+                'SUPERRES',
+                `skip local_only: ${sourceUrl}`
+                + ` img=${imageElement ? 'yes' : 'no'}`
+                + ` complete=${imageElement ? imageElement.complete : '-'}`
+                + ` natural=${imageElement ? `${imageElement.naturalWidth}x${imageElement.naturalHeight}` : '-'}`
+                + ` src=${imageElement ? (imageElement.currentSrc || '').slice(0, 40) : '-'}`,
+            )
             throw new Error('superres_local_only')
         }
         const afterFetch = performance.now()

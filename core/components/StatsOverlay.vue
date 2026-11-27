@@ -386,6 +386,20 @@ const superRows = computed(() => {
             + (attempts ? ` (${Math.round((counters.hits / attempts) * 100)}%)` : '')
             + (counters.queued ? ` · ${t('statsQueued')} ${counters.queued}` : ''),
     })
+    const withBlob = store.imgPageInfos.filter(info => info.localBlobSrc).length
+    if (store.superResEnabled) {
+        rows.push({
+            key: '本地副本',
+            value: `${withBlob} / ${store.imgPageInfos.length}`,
+        })
+    }
+    if (superResolutionService.lastFailure) {
+        // 直接摊在浮层上：用户不该为了看一个错误去开控制台
+        rows.push({
+            key: '最近失败',
+            value: superResolutionService.lastFailure.slice(0, 90),
+        })
+    }
     const last = stats.renders[stats.renders.length - 1]
     if (last) {
         rows.push({
@@ -423,7 +437,10 @@ const envRows = computed(() => {
         : formatBytes(stats.heapUsed)
     // 合并成四行：环境这块信息密度低，逐行摊开会把整块撑到滚动区外
     return [
-        { key: t('statsVersion'), value: `v${eHunterVersion()} · ${platformName()}` },
+        {
+            key: t('statsVersion'),
+            value: `v${eHunterVersion()}${eHunterBuildStamp()} · ${platformName()}`,
+        },
         { key: t('statsViewport'), value: `${window.innerWidth}×${window.innerHeight} · DPR ${window.devicePixelRatio}` },
         { key: t('statsFps'), value: stats.fps ? `${stats.fps}` : '—' },
         { key: t('statsHeap'), value: `${heap} · ${stats.nodes} ${t('statsNodeUnit')}` },
@@ -438,6 +455,10 @@ const uptimeText = computed(() => {
     }
     return formatDuration(Date.now() - stats.openedAt)
 })
+
+function eHunterBuildStamp(): string {
+    return typeof __BUILD_STAMP__ === 'string' && __BUILD_STAMP__ ? ` (${__BUILD_STAMP__})` : ''
+}
 
 function eHunterVersion(): string {
     const direct = typeof __EHUNTER_VERSION__ === 'string' ? __EHUNTER_VERSION__ : ''

@@ -840,8 +840,18 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                 return
             }
             storeAction.setImgPageInfoLocalBlobSrc(index, blobUrl)
+            /*
+             * 强制重建 <img>。
+             *
+             * 只改 localBlobSrc 时元素上的 src 没有跟着变：实测「本地副本 9/31」明明有值，
+             * 超分拿到的 <img> 却仍是跨域原图，texImage2D 报 Tainted canvases。
+             * 换 key 让 Vue 重新创建元素，确保它加载的是 blob；
+             * 重建后会自然触发一次 loaded，超分在那时进行。
+             */
+            imgReloadKey.value++
+            Logger.logText('SUPERRES', `local blob ready: page ${index}`)
         } catch (error) {
-            Logger.logText('SUPERRES', `local blob failed: ${(error as Error)?.message || error}`)
+            Logger.logText('SUPERRES', `local blob failed: page ${index} ${(error as Error)?.message || error}`)
         }
     }
 
@@ -964,7 +974,12 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
                 reusable = imgElement
             }
         }
-        const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index), reusable)
+        const upgraded = await superResolutionService.resolve(
+            originalSrc,
+            superResPriorityOf(index),
+            reusable,
+            imgPageInfo.value?.localBlobSrc || null,
+        )
         // 这段时间里可能已经换页/换源/关掉超分，过期结果直接丢
         if (imgPageInfo.value.src !== originalSrc || !store.superResEnabled) {
             return
