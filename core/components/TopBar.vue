@@ -257,7 +257,17 @@ div {
     padding: 0;
     margin: 0;
     background: transparent;
-    position: relative;
+    /*
+     * 必须是 absolute。
+     * 这里原本是 relative，顶栏因此在正常流里占掉一条高度，
+     * 顶栏出现时会把图片整体往下推一截。
+     * 外部（ReaderView）虽然也写过 absolute，但那是跨组件覆盖，
+     * 优先级靠不住；直接写在这里最稳。
+     * absolute 同样会建立定位上下文，内部的 .float-content 不受影响。
+     */
+    position: absolute;
+    top: 0;
+    left: 0;
 
     >.float-content {
         position: absolute;

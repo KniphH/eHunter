@@ -237,6 +237,7 @@ div {
     &.pointer-mode {
         :deep(.top-bar),
         :deep(.thumb-panel.bottom),
+        :deep(.bottom-pagination),
         > .status-pannel {
             transition: opacity 0.22s ease, transform 0.22s ease;
         }
@@ -244,6 +245,12 @@ div {
         &:not(.hover-top) :deep(.top-bar) {
             opacity: 0 !important;
             transform: translateY(-10px);
+            pointer-events: none !important;
+        }
+
+        /* 底部页码条与页目录一致：靠近底边才浮出 */
+        &:not(.hover-thumb) :deep(.bottom-pagination) {
+            opacity: 0 !important;
             pointer-events: none !important;
         }
 

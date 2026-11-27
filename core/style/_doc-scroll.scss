@@ -108,13 +108,14 @@ html.ehunter-doc-scroll {
         bottom: auto !important;
     }
 
-    // 顶栏吸顶；原本它靠 fixed 容器定位，现在要自己粘住
-    .main-content > .top-bar {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 20000;
-        flex: 0 0 auto !important;
-    }
+    /*
+     * 顶栏的定位规则不在这里管。
+     *
+     * 它已经移出 .main-content，成为 .reader-view 的直接子级并绝对定位（见 ReaderView）。
+     * 原来这里有一条 sticky !important + flex: 0 0 auto，会把顶栏钉回文档流、
+     * 占掉一条高度把图片推下去——「顶栏显示时顶掉图片」的真正原因。
+     * 直接删掉，避免任何 !important 残留和 ReaderView 的 absolute 打架。
+     */
 
     // 书页模式是单屏翻页，本来就不需要文档滚动。直接让它覆盖视口，
     // 不参与文档流，避免高度在流式布局里反复算不准。
