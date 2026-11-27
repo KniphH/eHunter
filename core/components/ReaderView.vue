@@ -39,10 +39,11 @@
           1) AlbumBookView 里 top += topBarHeight 的主动偏移
           2) 视口高度取自被顶栏挤小的容器 offsetHeight
     -->
-    <div class="top-bar-layer" :style="topBarLayerStyle">
+    <!-- pageCount 为 0 表示还没载入漫画（脚本注入但没点启动）：不渲染顶栏 -->
+    <div v-if="store.pageCount > 0" class="top-bar-layer" :style="topBarLayerStyle">
         <TopBar class="top-bar" @closeEHunter="closeReader"/>
     </div>
-    <div class="status-pannel">
+    <div v-if="store.pageCount > 0" class="status-pannel">
         <button
             class="full-screen"
             :aria-label="i18n.fullScreen"
