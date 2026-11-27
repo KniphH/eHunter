@@ -921,6 +921,34 @@ superResolutionService.setResultListener((sourceUrl, url) => {
     }
 })
 
+// 翻页后重算缓存优先级，否则淘汰会挑错项（详见 updateCachePriorities 的注释）
+watch(
+    () => store.curViewIndex,
+    (center) => {
+        const entries: Array<{ src: string, priority: number }> = []
+        store.imgPageInfos.forEach((info, index) => {
+            if (info.src) {
+                entries.push({ src: info.src, priority: superResPriority(index, center, store.superResLookahead) })
+            }
+        })
+        superResolutionService.updateCachePriorities(entries)
+    },
+)
+
+// 翻页后重算缓存优先级，否则淘汰会挑错项（详见 updateCachePriorities 的注释）
+watch(
+    () => store.curViewIndex,
+    (center) => {
+        const entries: Array<{ src: string, priority: number }> = []
+        store.imgPageInfos.forEach((info, index) => {
+            if (info.src) {
+                entries.push({ src: info.src, priority: superResPriority(index, center, store.superResLookahead) })
+            }
+        })
+        superResolutionService.updateCachePriorities(entries)
+    },
+)
+
 // 把存储里读到的池大小同步给超分服务（服务不认识 store，避免循环依赖）
 setSuperResCacheLimit(store.superResCacheLimit)
 

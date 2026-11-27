@@ -54,6 +54,8 @@
             class="album-item"
             v-if="active && imgPageInfo && (imgPageInfo.displaySrc || imgPageInfo.src)"
             :src="imgPageInfo.displaySrc || imgPageInfo.src"
+            :crossorigin="corsMode ? 'anonymous' : undefined"
+            :key="imgReloadKey"
             @load="loaded($event)"
             @error="failLoad($event)">
     </div>
@@ -263,6 +265,8 @@ const {
     loaded,
     resetAutoRetry,
     upgradeBySuperResolution,
+    corsMode,
+    imgReloadKey,
 } = usePageImageLoader({
     index: props.index,
     albumService,

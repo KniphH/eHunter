@@ -914,6 +914,11 @@ interface RenderSlot {
 
 class SuperResolutionService {
     private resultCache = new Map<string, CacheEntry>()
+    /**
+     * 每个缓存项入队时的优先级（越小越靠近当前页）。
+     * 淘汰时用它挑「离当前页最远」的，而不是 LRU。
+     */
+    private cachePriority = new Map<string, number>()
     private pending = new Map<string, Promise<string>>()
     /**
      * 失败页 + 失败时间。
@@ -1034,7 +1039,7 @@ class SuperResolutionService {
                     this.scheduleRetry(sourceUrl, priority)
                     return sourceUrl
                 }
-                this.store(sourceUrl, result)
+                this.store(sourceUrl, result, priority)
                 this.retryAttempts.delete(sourceUrl)
                 this.clearRetry(sourceUrl)
                 Logger.logText('SUPERRES', `ok ${result.sourceWidth}x${result.sourceHeight} -> ${result.width}x${result.height}, ${Math.round(result.costMs)}ms, ${result.params} passes`)
@@ -1123,6 +1128,7 @@ class SuperResolutionService {
     clearCache(keepSlot = false): void {
         const urls = [...this.resultCache.values()].map((entry) => entry.result.url)
         this.resultCache.clear()
+        this.cachePriority.clear()
         this.ownUrls.clear()
         this.failed.clear()
         for (const timer of this.retryTimers.values()) {
@@ -1167,6 +1173,24 @@ class SuperResolutionService {
      */
     setResultListener(listener: ((sourceUrl: string, url: string) => void) | null): void {
         this.resultListener = listener
+    }
+
+    /**
+     * 翻页后重算缓存项的优先级。
+     *
+     * 淘汰是按 priority 挑「最远」的，而 priority 是入队时算的——
+     * 翻到第 8 页之后，旧的 priority 仍认为第 8 页最远，会把正在看的那页淘汰掉。
+     * 所以每次页码变化都要重新推一遍。
+     */
+    updateCachePriorities(entries: Array<{ src: string, priority: number }>): void {
+        for (const entry of entries) {
+            if (!entry.src) {
+                continue
+            }
+            if (this.resultCache.has(entry.src)) {
+                this.cachePriority.set(entry.src, entry.priority)
+            }
+        }
     }
 
     /** 取消某个地址的待重试任务 */
@@ -1277,20 +1301,38 @@ class SuperResolutionService {
         this.releaseSlotAt(-1)
     }
 
-    private store(sourceUrl: string, result: SuperResResult): void {
+    private store(sourceUrl: string, result: SuperResResult, priority: number): void {
         this.resultCache.set(sourceUrl, { result })
+        this.cachePriority.set(sourceUrl, priority)
         this.ownUrls.add(result.url)
+        /*
+         * 淘汰「离当前页最远」的一项，而不是最早写入的（LRU）。
+         *
+         * 阅读是来回翻的，LRU 会优先踢掉刚看过的那几页——而那恰恰是最可能要回看的。
+         * 更糟的是踢掉一页之后，它旁边的页在补算时又会触发下一轮淘汰，
+         * 出现「为算第 9 页踢掉第 3 页，再为第 3 页踢掉第 2 页」这种左右互搏。
+         * priority 里已经编码了「距当前页多远」，直接按它挑最远的即可。
+         */
         while (this.resultCache.size > resultCacheLimit) {
-            const oldestKey = this.resultCache.keys().next().value as string | undefined
-            if (oldestKey === undefined) {
+            let worstKey: string | undefined
+            let worstPriority = -Infinity
+            for (const key of this.resultCache.keys()) {
+                const value = this.cachePriority.get(key) ?? 0
+                if (value > worstPriority) {
+                    worstPriority = value
+                    worstKey = key
+                }
+            }
+            if (worstKey === undefined) {
                 break
             }
-            const oldest = this.resultCache.get(oldestKey)
-            this.resultCache.delete(oldestKey)
-            if (oldest) {
-                this.evictListener?.(oldest.result.url)
-                this.ownUrls.delete(oldest.result.url)
-                URL.revokeObjectURL(oldest.result.url)
+            const evicted = this.resultCache.get(worstKey)
+            this.resultCache.delete(worstKey)
+            this.cachePriority.delete(worstKey)
+            if (evicted) {
+                this.evictListener?.(evicted.result.url)
+                this.ownUrls.delete(evicted.result.url)
+                URL.revokeObjectURL(evicted.result.url)
             }
         }
     }

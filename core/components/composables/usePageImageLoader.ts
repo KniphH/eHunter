@@ -10,6 +10,9 @@ import { fetchImageObjectUrl } from '../../service/ImageFetchService'
 import { superResolutionService } from '../../service/SuperResolutionService'
 import { hostOf, reportNet, reportPage, type PageSnapshot } from '../../service/StatsService'
 
+/** 不支持 CORS 的站点（加了 crossOrigin 会让图片直接加载失败，需按站点记忆） */
+const NO_CORS_HOSTS = new Set<string>()
+
 export enum ImgLoadStatus {
     Waiting = 0,
     Loading = 1,
@@ -777,9 +780,28 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
         return !!img && target !== img
     }
 
+    /*
+     * CORS 探测。
+     *
+     * 给 <img> 加 crossOrigin="anonymous" 后，跨域图片才允许被 createImageBitmap 读取
+     * （否则 canvas 被污染，超分根本拿不到像素，只能退回去重新下载一遍原图）。
+     * 但有些站点不给 CORS 头，加了 crossOrigin 会让图片**直接加载失败**，
+     * 所以按站点记忆：失败一次就记下来，之后该站点不再加这个属性。
+     */
+    const corsMode = ref(!NO_CORS_HOSTS.has(location.hostname))
+    const imgReloadKey = ref(0)
+
     function failLoad(e: Event) {
         e.preventDefault()
         if (isStaleEvent(e)) {
+            return
+        }
+        if (corsMode.value) {
+            // 可能是站点不支持 CORS，去掉 crossOrigin 再加载一次
+            NO_CORS_HOSTS.add(location.hostname)
+            corsMode.value = false
+            imgReloadKey.value++
+            Logger.logText('LOADING', `site ${location.hostname} has no CORS, reload without it`)
             return
         }
         curLoadStatus.value = ImgLoadStatus.Error
@@ -855,34 +877,22 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
             return
         }
         /*
-         * 把页面上这张已经解码好的 <img> 一起传下去，超分就能省掉一次原图下载。
-         * 只在它当前显示的确实是这张原图时才复用——换源/换页时 img 可能已经是别的图。
+         * 直接用这一页自己的 <img>，不再比对 URL。
+         *
+         * getImgElement() 返回的就是当前 PageView 的元素，而 imgPageInfo.src 也已经
+         * 在这条 load 链路里对齐过——再拿 currentSrc 去比 originalSrc 只会引入噪音：
+         * 一个是浏览器解析后的绝对地址，一个是页面解析器给的相对地址，还可能带
+         * 查询参数/编码差异，实测几乎永远比不中，结果就是每页都重新下载一遍原图。
+         *
+         * 唯一要排除的是 blob:：那说明这张 img 显示的是插件产出的图（超分结果或兜底图），
+         * 拿它再超分一次是错的。
          */
         const imgElement = getImgElement()
-        /*
-         * 复用判断要按「绝对 URL」比，并且排除 blob。
-         *
-         * 之前直接比 imgElement.currentSrc === originalSrc：
-         * currentSrc 是浏览器解析后的绝对地址，而 originalSrc 往往是相对路径，
-         * 两边永远不相等 —— 于是复用从来没生效过，每页超分都重新下载一遍原图
-         * （统计里「取址耗时」六七百毫秒就是这么来的）。
-         *
-         * blob: 说明这张 img 显示的是插件自己产出的图（超分结果或兜底图），
-         * 拿它再超分一次是错的，必须排除。
-         */
         let reusable: HTMLImageElement | null = null
         if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
-            const currentSrc = imgElement.currentSrc || ''
-            if (currentSrc && !currentSrc.startsWith('blob:')) {
-                let absoluteSrc = originalSrc
-                try {
-                    absoluteSrc = new URL(originalSrc, location.href).href
-                } catch {
-                    // 相对地址解析失败时退回原样比较
-                }
-                if (currentSrc === absoluteSrc || currentSrc === originalSrc) {
-                    reusable = imgElement
-                }
+            const shown = imgElement.currentSrc || imgElement.src || ''
+            if (shown && !shown.startsWith('blob:')) {
+                reusable = imgElement
             }
         }
         const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index), reusable)
@@ -1028,6 +1038,8 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
     })
 
     return {
+        corsMode,
+        imgReloadKey,
         curLoadStatus,
         loadingInfo,
         isSessionRunning,
