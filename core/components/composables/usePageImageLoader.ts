@@ -859,7 +859,32 @@ export function usePageImageLoader(options: UsePageImageLoaderOptions) {
          * 只在它当前显示的确实是这张原图时才复用——换源/换页时 img 可能已经是别的图。
          */
         const imgElement = getImgElement()
-        const reusable = imgElement && imgElement.currentSrc === originalSrc ? imgElement : null
+        /*
+         * 复用判断要按「绝对 URL」比，并且排除 blob。
+         *
+         * 之前直接比 imgElement.currentSrc === originalSrc：
+         * currentSrc 是浏览器解析后的绝对地址，而 originalSrc 往往是相对路径，
+         * 两边永远不相等 —— 于是复用从来没生效过，每页超分都重新下载一遍原图
+         * （统计里「取址耗时」六七百毫秒就是这么来的）。
+         *
+         * blob: 说明这张 img 显示的是插件自己产出的图（超分结果或兜底图），
+         * 拿它再超分一次是错的，必须排除。
+         */
+        let reusable: HTMLImageElement | null = null
+        if (imgElement && imgElement.complete && imgElement.naturalWidth > 0) {
+            const currentSrc = imgElement.currentSrc || ''
+            if (currentSrc && !currentSrc.startsWith('blob:')) {
+                let absoluteSrc = originalSrc
+                try {
+                    absoluteSrc = new URL(originalSrc, location.href).href
+                } catch {
+                    // 相对地址解析失败时退回原样比较
+                }
+                if (currentSrc === absoluteSrc || currentSrc === originalSrc) {
+                    reusable = imgElement
+                }
+            }
+        }
         const upgraded = await superResolutionService.resolve(originalSrc, superResPriorityOf(index), reusable)
         // 这段时间里可能已经换页/换源/关掉超分，过期结果直接丢
         if (imgPageInfo.value.src !== originalSrc || !store.superResEnabled) {
