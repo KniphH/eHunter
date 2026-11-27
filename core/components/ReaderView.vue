@@ -277,7 +277,14 @@ div {
         flex-direction: column;
 
         > .top-bar {
-            position: absolute;
+            /*
+             * 必须 absolute，而且需要 !important。
+             * TopBar 组件自己的根样式写了 position: relative，会把这条盖掉——
+             * 结果是顶栏在正常流里占掉一条高度，图片被顶下去一段；
+             * 收到隐藏后那一块空白仍然留着，看起来像「图片没有往上顶」。
+             * 改成 absolute 后顶栏浮在图片之上，收起时只淡出、不影响布局。
+             */
+            position: absolute !important;
             z-index: 10000;
             left: 0;
             top: 0;
