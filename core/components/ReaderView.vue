@@ -194,7 +194,13 @@ function handlePointerLeave(): void {
 }
 
 onMounted(() => {
-    pointerMode.value = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    /*
+     * 只有「明确是触摸设备」才关闭沉浸模式。
+     * 之前用 (hover: hover) and (pointer: fine) 反向判断，条件过严：
+     * 某些桌面环境（外接触控板、远程桌面、混合设备）不满足就会一直是 false，
+     * 结果按钮永远不隐藏，看起来像「这个功能没做」。
+     */
+    pointerMode.value = !window.matchMedia('(hover: none) and (pointer: coarse)').matches
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     document.addEventListener('pointerleave', handlePointerLeave)
     syncFullscreenState()

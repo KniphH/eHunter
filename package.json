@@ -1,6 +1,6 @@
 {
   "name": "ehunter",
-  "version": "1.2.8.4",
+  "version": "1.2.8.5",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
