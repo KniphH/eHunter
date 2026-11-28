@@ -167,7 +167,6 @@ function updateActivePageIndexes(): void {
     }
     const scroller = scrollView.value?.$el as HTMLElement | undefined
     const viewportHeight = scroller && scroller.clientHeight ? scroller.clientHeight : window.innerHeight
-    const position = scrollPosition.value
     const indexes = renderedPageIndexList.value
     const next = new Set<number>()
     for (let i = 0; i < containers.length; i++) {
@@ -175,10 +174,16 @@ function updateActivePageIndexes(): void {
         if (!element) {
             continue
         }
-        const top = element.offsetTop
-        const bottom = top + element.offsetHeight
-        // 视口范围上下各留一屏
-        if (bottom > position - viewportHeight && top < position + viewportHeight * 2) {
+        /*
+         * 用屏幕坐标判断可见性，不再用 offsetTop 与 scrollPosition 比较。
+         *
+         * offsetTop 相对 offsetParent、scrollPosition 相对滚动容器，
+         * 两者坐标系不一致时（手机上很常见），算出来的范围会严重偏小——
+         * 表现就是「加载页数设 10P，实际只加载到第 4 页，第 5 页永远不开始」。
+         * getBoundingClientRect 给的是屏幕坐标，和容器结构无关。
+         */
+        const rect = element.getBoundingClientRect()
+        if (rect.bottom > -viewportHeight && rect.top < viewportHeight * 2) {
             const pageIndex = indexes[i]
             if (pageIndex !== undefined) {
                 next.add(pageIndex)
