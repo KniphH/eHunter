@@ -296,6 +296,28 @@ div {
         font-size: 14px;
         transition: all 0.3s ease;
         height: v-bind('store.topBarHeight + "px"');
+        /*
+         * 视口不够宽时，宁可横向滚动，也别把后面的选项直接截掉——
+         * 被截掉意味着「页面上完全看不出来还有这些设置」。
+         * 滚动条本身隐藏掉，避免在细长条里显得突兀。
+         */
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        &::-webkit-scrollbar {
+            display: none;
+        }
+        /*
+         * 视口不够宽时，宁可横向滚动，也别把后面的选项直接截掉——
+         * 被截掉意味着「页面上完全看不出来还有这些设置」。
+         * 滚动条本身隐藏掉，避免在细长条里显得突兀。
+         */
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        &::-webkit-scrollbar {
+            display: none;
+        }
 
         >.item {
             margin-left: 18px;
