@@ -183,13 +183,31 @@ function updateActivePageIndexes(): void {
          * getBoundingClientRect 给的是屏幕坐标，和容器结构无关。
          */
         const rect = element.getBoundingClientRect()
-        if (rect.bottom > -viewportHeight && rect.top < viewportHeight * 2) {
+        if (rect.height > 0 && rect.bottom > -viewportHeight && rect.top < viewportHeight * 2) {
             const pageIndex = indexes[i]
             if (pageIndex !== undefined) {
                 next.add(pageIndex)
             }
         }
     }
+
+    /*
+     * 兜底：把「当前页 ± 加载页数」范围内的页也算作活跃。
+     *
+     * 上面只看屏幕坐标有个死循环：没渲染的页 rect 高度是 0，
+     * 永远不满足可见条件，于是永远不渲染，也就永远不加载。
+     * 表现就是「只加载开头几页就停住，翻到后面的页也不开始加载」。
+     * 用索引范围兜底之后，cursurViewIndex 往前推进时能自动把后续页拉进来。
+     */
+    const from = Math.max(0, store.curViewIndex - store.loadNum)
+    const to = Math.min(store.pageCount - 1, store.curViewIndex + store.loadNum)
+    for (let i = 0; i < indexes.length; i++) {
+        const pageIndex = indexes[i]
+        if (pageIndex !== undefined && pageIndex >= from && pageIndex <= to) {
+            next.add(pageIndex)
+        }
+    }
+
     activePageIndexes.value = next
 }
 
