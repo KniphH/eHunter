@@ -86,12 +86,25 @@ function currentPosition(): number {
     if (!asv.value) {
         return 0
     }
+    const inner = props.axis === 'y' ? asv.value.scrollTop : asv.value.scrollLeft
+    /*
+     * 内部容器滚不动时退回文档滚动。
+     *
+     * documentScroll 这个标志是按站点/模式推断出来的，但手机上实际由谁滚动
+     * 并不总是和推断一致：有些机型/浏览器把滚动交给文档，容器的 scrollTop 恒为 0。
+     * 那样 watchPosition 会一直认为「位置没变」，永远不判定为停止，
+     * onScrollStopped 一次都不触发 —— 页码就冻在进入时的那一页。
+     *
+     * 这里以实际滚动量为准：内部有位移就用内部，否则看文档。
+     */
+    if (inner > 0) {
+        return inner
+    }
     if (props.documentScroll) {
-        // 这个 div 在文档流里的绝对顶部；window.scrollY 减去它就是"滚到本容器内的距离"
         const top = asv.value.getBoundingClientRect().top + window.scrollY
         return Math.max(0, Math.round(window.scrollY - top))
     }
-    return props.axis === 'y' ? asv.value.scrollTop : asv.value.scrollLeft
+    return inner
 }
 
 function onDocumentScroll(): void {
@@ -131,6 +144,26 @@ onMounted(() => {
             emit('topIn')
         }
     }
+    /*
+     * 除了轮询，也挂上文档滚动监听。
+     * 手机上有实际滚动发生在文档、而容器 scrollTop 恒为 0 的情况，
+     * 只靠轮询会永远判定不出「滚动停止」。两种来源都听，谁动都算。
+     */
+    window.addEventListener('scroll', onDocumentScroll, { passive: true })
+    /*
+     * 除了 50ms 轮询，也挂上文档滚动。
+     * 手机上有「实际滚动发生在文档、容器 scrollTop 恒为 0」的情况，
+     * 只靠轮询会永远判定不出滚动停止，onScrollStopped 不触发，页码就冻住。
+     * 两种来源都听，谁动都算一次。
+     */
+    window.addEventListener('scroll', onDocumentScroll, { passive: true })
+    /*
+     * 除了 50ms 轮询，也挂上文档滚动。
+     * 手机上有「实际滚动发生在文档、容器 scrollTop 恒为 0」的情况，
+     * 只靠轮询会永远判定不出滚动停止，onScrollStopped 不触发，页码就冻住。
+     * 两种来源都听，谁动都算一次。
+     */
+    window.addEventListener('scroll', onDocumentScroll, { passive: true })
     timer = window.setInterval(watchPosition, 50)
 })
 
