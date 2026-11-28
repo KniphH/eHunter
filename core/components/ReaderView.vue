@@ -6,6 +6,7 @@
         'hover-top': hoverTop,
         'hover-bottom': hoverBottom,
         'hover-thumb': hoverThumb,
+        'touch-immersive': touchImmersive,
     }">
     <DockWorkspace
         ref="dockWorkspaceRef"
@@ -69,7 +70,7 @@ import DockWorkspace from './layout/DockWorkspace.vue'
 import FullScreenIcon from '../assets/svg/full_screen.svg?component'
 import { i18n } from '../store/i18n'
 import { store, storeAction } from '../store/app'
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import type { GestureStartPayload } from '../utils/layoutGesture'
 
 type FullscreenTarget = HTMLElement & {
@@ -197,6 +198,16 @@ const topBarLayerStyle = {
 } as const
 
 const pointerMode = ref(false)
+/*
+ * 触屏设备的沉浸方式：用「是否全屏」代替 hover。
+ *
+ * 触屏没有鼠标悬停，所以之前让按钮常显。
+ * 但手机退出全屏很容易（左右滑返回），所以更自然的做法是：
+ *   没进全屏 → 按钮常显（方便操作）
+ *   进了全屏 → 按钮全部隐藏（完全沉浸）
+ * 想操作时退出全屏即可，按钮立刻回来。
+ */
+const touchImmersive = ref(false)
 const hoverTop = ref(false)
 const hoverBottom = ref(false)
 const hoverThumb = ref(false)
@@ -227,7 +238,9 @@ onMounted(() => {
      * 某些桌面环境（外接触控板、远程桌面、混合设备）不满足就会一直是 false，
      * 结果按钮永远不隐藏，看起来像「这个功能没做」。
      */
-    pointerMode.value = !window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    pointerMode.value = !coarsePointer
+    touchImmersive.value = coarsePointer && isFullscreen.value
     /*
      * 直接给顶栏容器写 !important。
      *
@@ -255,6 +268,26 @@ onMounted(() => {
     document.addEventListener('mozfullscreenchange', syncFullscreenState as EventListener)
 })
 
+/*
+ * 触屏：全屏进来就隐藏按钮，退出就恢复。
+ * 只在非精确指针设备上生效，桌面仍走 hover 那一套。
+ */
+watch(isFullscreen, (full) => {
+    if (!pointerMode.value) {
+        touchImmersive.value = full
+    }
+})
+
+/*
+ * 触屏：全屏进来就隐藏按钮，退出就恢复。
+ * 只在非精确指针设备上生效，桌面仍走 hover 那一套。
+ */
+watch(isFullscreen, (full) => {
+    if (!pointerMode.value) {
+        touchImmersive.value = full
+    }
+})
+
 onUnmounted(() => {
     window.removeEventListener('pointermove', handlePointerMove)
     document.removeEventListener('pointerleave', handlePointerLeave)
@@ -280,6 +313,32 @@ div {
      * 只在 pointer-mode（有精确指针的桌面环境）下生效，触屏保持常显。
      * 隐藏时同时关掉 pointer-events，避免看不见的按钮挡住翻页点击。
      */
+    /* 触屏全屏：所有浮层按钮一律隐藏，直到用户退出全屏 */
+    &.touch-immersive {
+        :deep(.top-bar),
+        :deep(.thumb-panel.bottom),
+        :deep(.bottom-pagination),
+        > .top-bar-layer,
+        > .status-pannel {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.22s ease;
+        }
+    }
+
+    /* 触屏全屏：所有浮层按钮一律隐藏，直到用户退出全屏 */
+    &.touch-immersive {
+        :deep(.top-bar),
+        :deep(.thumb-panel.bottom),
+        :deep(.bottom-pagination),
+        > .top-bar-layer,
+        > .status-pannel {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.22s ease;
+        }
+    }
+
     &.pointer-mode {
         :deep(.top-bar),
         :deep(.thumb-panel.bottom),
