@@ -202,17 +202,24 @@ const bookTransitionName = computed(() => {
     return store.flipDirection == 0 ? 'screen-flip' : 'screen-flip-reverse'
 })
 
-function onClickBg(e: any) {
-    let y = e.clientY
-    switch(true) {
-        case y >= 0 && y < store.viewportHeight * 0.3:
-            storeAction.setCurViewIndex(store.curViewIndex - store.pagesPerScreen, 'click')
-            break
-        case y >= store.viewportHeight * 0.3 && y <= store.viewportHeight * 0.7:
-            break
-        case y >= store.viewportHeight * 0.7 && y <= store.viewportHeight:
-            storeAction.setCurViewIndex(store.curViewIndex + store.pagesPerScreen, 'click')
-            break
+function onClickBg(e: MouseEvent) {
+    /*
+     * 点击分区改成左右，和 NH 等主流漫画站一致：
+     *   右半边 → 下一页
+     *   左半边 → 上一页
+     *   中间 40% 留空，避免误触
+     *
+     * 原来按上下三分区，手机上拇指根本够不到顶部，往下滑还容易误触翻页。
+     * 「下一页」始终向 index 递增方向走：日漫 RTL 时画面虽是从右往左翻，
+     * 但右边依然是「后面」的内容，所以左右映射不随书页方向改变。
+     */
+    const width = store.viewportWidth || window.innerWidth
+    const x = e.clientX
+    const step = store.pagesPerScreen
+    if (x <= width * 0.3) {
+        storeAction.setCurViewIndex(store.curViewIndex - step, 'click')
+    } else if (x >= width * 0.7) {
+        storeAction.setCurViewIndex(store.curViewIndex + step, 'click')
     }
 }
 
