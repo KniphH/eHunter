@@ -74,19 +74,45 @@ watch(scrollPosition, position => {
         }
     } else if (scrollPosition.value !== 0) {
         /*
-         * 判据是「页的顶部越过视口中线」。
+         * 判据改成：哪一页盖住了屏幕中心。
          *
-         * 原来比的是 scrollTop + innerHeight（视口底部），等于「只要下一页露出一点点
-         * 就算当前页」——于是永远比实际阅读位置大一页：你在第 3 页，它显示第 4 页。
-         * 用中线之后，只有当一页真的占据视口主要区域时才算当前页。
+         * 之前用 item.offsetTop 和 scrollPosition 比大小。这两个量的坐标系不一定一致
+         * （offsetTop 相对 offsetParent，scrollPosition 相对滚动容器），
+         * 在手机上直接失效：判出来的当前页永远停在第二页，往下滑既不更新页码、
+         * 也不会触发下一页的预加载。
+         *
+         * getBoundingClientRect 给的是屏幕坐标，和容器结构无关，手机和桌面都成立。
          */
-        const _cons = cons.concat().reverse()
-        const anchor = scrollPosition.value + window.innerHeight / 2
-        let result = cons.indexOf(
-            _cons.find(item => item.offsetTop <= anchor)
-        );
-        const volIndex = result === -1 ? pageContainers.value.length - 1 : result
-        // 同时渲染多卷，局部下标要映射回真实页号
+        const centerY = window.innerHeight / 2
+        let volIndex = -1
+        for (let i = 0; i < cons.length; i++) {
+            const rect = cons[i].getBoundingClientRect()
+            if (rect.height <= 0) {
+                continue
+            }
+            if (rect.top <= centerY && rect.bottom >= centerY) {
+                volIndex = i
+                break
+            }
+        }
+        if (volIndex === -1) {
+            // 中心正好落在页间间隙里：取离中心最近的一页
+            let bestDist = Infinity
+            for (let i = 0; i < cons.length; i++) {
+                const rect = cons[i].getBoundingClientRect()
+                if (rect.height <= 0) {
+                    continue
+                }
+                const dist = Math.abs((rect.top + rect.bottom) / 2 - centerY)
+                if (dist < bestDist) {
+                    bestDist = dist
+                    volIndex = i
+                }
+            }
+        }
+        if (volIndex === -1) {
+            volIndex = 0
+        }
         index = renderedPageIndexList.value[volIndex] ?? 0
     } else {
         index = renderedPageIndexList.value[0] ?? 0
